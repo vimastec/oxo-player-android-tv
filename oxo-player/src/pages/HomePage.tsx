@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useAppStore } from '../stores/appStore';
 import { Tv, Film, PlaySquare, RotateCcw, ListVideo, Settings } from 'lucide-react';
 
 interface HomePageProps {

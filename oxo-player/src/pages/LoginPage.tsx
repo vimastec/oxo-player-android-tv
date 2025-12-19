@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tv, Link, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import xtreamApi from '../services/xtreamApi';
-import { loadM3UFromUrl, loadM3UFromFile } from '../services/m3uParser';
+import { loadM3UFromUrl, loadM3UFromFile, loadFromCache } from '../services/m3uParser';
 
 type ConnectionType = 'xtream' | 'm3u-url' | 'm3u-file';
 
 export function LoginPage() {
   const [connectionType, setConnectionType] = useState<ConnectionType>('xtream');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [parseProgress, setParseProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   // Xtream fields
@@ -32,6 +34,25 @@ export function LoginPage() {
     setSeries,
   } = useAppStore();
 
+  // Try to load from cache on mount
+  useEffect(() => {
+    const tryLoadFromCache = async () => {
+      setLoadingMessage('Vérification du cache...');
+      const cached = await loadFromCache();
+      if (cached && (cached.channels.length > 0 || cached.movies.length > 0)) {
+        console.log('Loaded from cache');
+        setLiveChannels(cached.channels);
+        setMovies(cached.movies);
+        setSeries(cached.series);
+        setLiveCategories(cached.categories.live);
+        setVodCategories(cached.categories.vod);
+        setSeriesCategories(cached.categories.series);
+        setConnected(true);
+      }
+    };
+    tryLoadFromCache();
+  }, []);
+
   const handleXtreamConnect = async () => {
     if (!server || !username || !password) {
       setError('Veuillez remplir tous les champs');
@@ -40,6 +61,7 @@ export function LoginPage() {
 
     setIsLoading(true);
     setError(null);
+    setLoadingMessage('Connexion au serveur...');
 
     try {
       const credentials = { server, username, password };
@@ -51,6 +73,8 @@ export function LoginPage() {
       setUserInfo(authData.user_info);
       setServerInfo(authData.server_info);
 
+      setLoadingMessage('Chargement des catégories...');
+      
       // Load categories
       const [liveCategories, vodCategories, seriesCategories] = await Promise.all([
         xtreamApi.getLiveCategories(),
@@ -62,6 +86,8 @@ export function LoginPage() {
       setVodCategories(vodCategories || []);
       setSeriesCategories(seriesCategories || []);
 
+      setLoadingMessage('Chargement du contenu...');
+      
       // Load initial content
       const [liveStreams, movies, series] = await Promise.all([
         xtreamApi.getLiveStreams(),
@@ -79,6 +105,7 @@ export function LoginPage() {
       setError('Échec de la connexion. Vérifiez vos identifiants.');
     } finally {
       setIsLoading(false);
+      setLoadingMessage('');
     }
   };
 
@@ -90,18 +117,29 @@ export function LoginPage() {
 
     setIsLoading(true);
     setError(null);
+    setParseProgress(0);
+    setLoadingMessage('Téléchargement de la playlist...');
 
     try {
-      const { channels, categories } = await loadM3UFromUrl(m3uUrl);
+      const result = await loadM3UFromUrl(m3uUrl, (progress) => {
+        setParseProgress(progress.percent);
+        setLoadingMessage(`Analyse de la playlist... ${progress.percent}%`);
+      });
       
-      setLiveChannels(channels);
-      setLiveCategories(categories);
+      setLiveChannels(result.channels);
+      setMovies(result.movies);
+      setSeries(result.series);
+      setLiveCategories(result.categories.live);
+      setVodCategories(result.categories.vod);
+      setSeriesCategories(result.categories.series);
       setConnected(true);
     } catch (err) {
       console.error('M3U error:', err);
       setError('Échec du chargement de la playlist M3U');
     } finally {
       setIsLoading(false);
+      setLoadingMessage('');
+      setParseProgress(0);
     }
   };
 
@@ -111,18 +149,29 @@ export function LoginPage() {
 
     setIsLoading(true);
     setError(null);
+    setParseProgress(0);
+    setLoadingMessage(`Lecture de ${file.name}...`);
 
     try {
-      const { channels, categories } = await loadM3UFromFile(file);
+      const result = await loadM3UFromFile(file, (progress) => {
+        setParseProgress(progress.percent);
+        setLoadingMessage(`Analyse de la playlist... ${progress.percent}%`);
+      });
       
-      setLiveChannels(channels);
-      setLiveCategories(categories);
+      setLiveChannels(result.channels);
+      setMovies(result.movies);
+      setSeries(result.series);
+      setLiveCategories(result.categories.live);
+      setVodCategories(result.categories.vod);
+      setSeriesCategories(result.categories.series);
       setConnected(true);
     } catch (err) {
       console.error('M3U file error:', err);
       setError('Échec du chargement du fichier M3U');
     } finally {
       setIsLoading(false);
+      setLoadingMessage('');
+      setParseProgress(0);
     }
   };
 
@@ -150,7 +199,7 @@ export function LoginPage() {
           <button
             onClick={() => setConnectionType('xtream')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl 
-              font-medium transition-all ${
+              font-medium transition-all tv-focusable ${
               connectionType === 'xtream'
                 ? 'bg-oxo-primary text-white'
                 : 'bg-oxo-card border border-oxo-border hover:border-oxo-primary'
@@ -162,7 +211,7 @@ export function LoginPage() {
           <button
             onClick={() => setConnectionType('m3u-url')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl 
-              font-medium transition-all ${
+              font-medium transition-all tv-focusable ${
               connectionType === 'm3u-url'
                 ? 'bg-oxo-primary text-white'
                 : 'bg-oxo-card border border-oxo-border hover:border-oxo-primary'
@@ -174,7 +223,7 @@ export function LoginPage() {
           <button
             onClick={() => setConnectionType('m3u-file')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl 
-              font-medium transition-all ${
+              font-medium transition-all tv-focusable ${
               connectionType === 'm3u-file'
                 ? 'bg-oxo-primary text-white'
                 : 'bg-oxo-card border border-oxo-border hover:border-oxo-primary'
@@ -247,12 +296,12 @@ export function LoginPage() {
                 disabled={isLoading}
                 className="w-full py-4 bg-gradient-to-r from-oxo-primary to-oxo-secondary
                   rounded-xl font-semibold text-lg hover:opacity-90 transition-opacity
-                  disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                  disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 tv-focusable"
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Connexion en cours...
+                    {loadingMessage || 'Connexion en cours...'}
                   </>
                 ) : (
                   'Se connecter'
@@ -277,17 +326,31 @@ export function LoginPage() {
                     transition-colors"
                 />
               </div>
+              
+              {/* Progress bar */}
+              {isLoading && parseProgress > 0 && (
+                <div className="space-y-2">
+                  <div className="h-2 bg-oxo-darker rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-oxo-primary to-oxo-secondary transition-all duration-300"
+                      style={{ width: `${parseProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-oxo-muted text-center">{loadingMessage}</p>
+                </div>
+              )}
+              
               <button
                 onClick={handleM3UUrlConnect}
                 disabled={isLoading}
                 className="w-full py-4 bg-gradient-to-r from-oxo-primary to-oxo-secondary
                   rounded-xl font-semibold text-lg hover:opacity-90 transition-opacity
-                  disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                  disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 tv-focusable"
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Chargement...
+                    {loadingMessage || 'Chargement...'}
                   </>
                 ) : (
                   'Charger la playlist'
@@ -300,10 +363,11 @@ export function LoginPage() {
             <div className="space-y-4">
               <label className="block">
                 <div className="border-2 border-dashed border-oxo-border rounded-xl p-8
-                  hover:border-oxo-primary transition-colors cursor-pointer text-center">
+                  hover:border-oxo-primary transition-colors cursor-pointer text-center tv-focusable">
                   <Upload className="w-12 h-12 mx-auto mb-4 text-oxo-muted" />
                   <p className="font-medium mb-1">Glissez votre fichier M3U ici</p>
                   <p className="text-sm text-oxo-muted">ou cliquez pour sélectionner</p>
+                  <p className="text-xs text-oxo-muted mt-2">Supporte les playlists jusqu'à 50+ Mo</p>
                 </div>
                 <input
                   type="file"
@@ -312,10 +376,22 @@ export function LoginPage() {
                   className="hidden"
                 />
               </label>
+              
+              {/* Progress bar */}
               {isLoading && (
-                <div className="flex items-center justify-center gap-3 py-4">
-                  <Loader2 className="w-5 h-5 animate-spin text-oxo-primary" />
-                  <span>Chargement du fichier...</span>
+                <div className="space-y-2">
+                  {parseProgress > 0 && (
+                    <div className="h-2 bg-oxo-darker rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-oxo-primary to-oxo-secondary transition-all duration-300"
+                        style={{ width: `${parseProgress}%` }}
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center justify-center gap-3 py-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-oxo-primary" />
+                    <span className="text-sm">{loadingMessage}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -325,13 +401,9 @@ export function LoginPage() {
         {/* Footer */}
         <p className="text-center text-sm text-oxo-muted mt-6 animate-fade-in"
           style={{ animationDelay: '0.4s' }}>
-          OXO Player v1.0 • Application IPTV
+          OXO Player v2.0 • Optimisé Smart TV
         </p>
       </div>
     </div>
   );
 }
-
-
-
-

@@ -59,7 +59,8 @@ class XtreamAPI {
   }
 
   async getLiveStreams(categoryId?: string): Promise<LiveChannel[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = {};
+    if (categoryId) params.category_id = categoryId;
     const url = this.getApiUrl('get_live_streams', params);
     const response = await fetch(url);
     return response.json();
@@ -73,7 +74,8 @@ class XtreamAPI {
   }
 
   async getVodStreams(categoryId?: string): Promise<VODInfo[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = {};
+    if (categoryId) params.category_id = categoryId;
     const url = this.getApiUrl('get_vod_streams', params);
     const response = await fetch(url);
     return response.json();
@@ -93,7 +95,8 @@ class XtreamAPI {
   }
 
   async getSeries(categoryId?: string): Promise<SeriesInfo[]> {
-    const params = categoryId ? { category_id: categoryId } : {};
+    const params: Record<string, string> = {};
+    if (categoryId) params.category_id = categoryId;
     const url = this.getApiUrl('get_series', params);
     const response = await fetch(url);
     return response.json();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Clock, Loader2 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import xtreamApi from '../services/xtreamApi';

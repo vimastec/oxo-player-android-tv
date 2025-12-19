@@ -3,13 +3,11 @@ import { Loader2, Tv, AlertCircle, CheckCircle, Clock, Copy, Check } from 'lucid
 import {
   generateDeviceMac,
   registerDevice,
-  getPlaylist,
   getPlaylistContent,
   type DeviceRegistration,
-  type PlaylistData,
 } from '../services/deviceApi';
 import { useAppStore } from '../stores/appStore';
-import { parseM3U, m3uToLiveChannels, m3uToCategories } from '../services/m3uParser';
+import { parseM3U } from '../services/m3uParser';
 
 interface DeviceActivationPageProps {
   onActivated: (expirationDate?: string) => void;
@@ -70,20 +68,21 @@ export function DeviceActivationPage({ onActivated }: DeviceActivationPageProps)
         return;
       }
 
-      // Parse the M3U content (filtering live channels only for large playlists)
+      // Parse the M3U content
       console.log('Parsing playlist...');
-      const { channels, categories } = parseM3U(playlistContent, true);
-      console.log('Parsed:', channels.length, 'channels,', categories.length, 'categories');
-      console.log('Sample categories:', categories.slice(0, 5));
+      const result = await parseM3U(playlistContent, (progress) => {
+        console.log('Parse progress:', progress.percent + '%');
+      });
+      console.log('Parsed:', result.channels.length, 'channels,', result.categories.live.length, 'categories');
       
-      if (channels.length === 0) {
+      if (result.channels.length === 0) {
         console.log('No channels found in playlist');
         setError('Aucune chaîne trouvée dans la playlist');
         return;
       }
 
-      const liveChannels = m3uToLiveChannels(channels);
-      const liveCategories = m3uToCategories(categories);
+      const liveChannels = result.channels;
+      const liveCategories = result.categories.live;
       console.log('Setting', liveChannels.length, 'channels and', liveCategories.length, 'categories');
       
       // Try to save to store (may fail if too large for localStorage)

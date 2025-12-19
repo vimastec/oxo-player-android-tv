@@ -8,7 +8,7 @@ import type { Favorite } from '../types';
 type FilterType = 'all' | 'live' | 'movie' | 'series';
 
 export function FavoritesPage() {
-  const { favorites, removeFavorite, liveChannels, movies, credentials } = useAppStore();
+  const { favorites, removeFavorite, movies, credentials } = useAppStore();
   const [filter, setFilter] = useState<FilterType>('all');
   const [playingItem, setPlayingItem] = useState<{
     src: string;
