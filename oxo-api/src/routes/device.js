@@ -67,6 +67,9 @@ router.post('/register', (req, res) => {
     if (daysRemaining < 0) daysRemaining = 0;
   }
 
+  // Check if device has playlist configured (M3U or Xtream)
+  const hasPlaylist = !!(device.playlist_url || (device.xtream_host && device.xtream_username));
+
   res.json({
     mac_address: formattedMac,
     status: device.status,
@@ -74,7 +77,8 @@ router.post('/register', (req, res) => {
     activation_date: device.activation_date,
     expiration_date: device.expiration_date,
     days_remaining: daysRemaining,
-    has_playlist: !!device.playlist_url
+    has_playlist: hasPlaylist,
+    playlist_type: device.playlist_type || 'm3u'
   });
 });
 
@@ -120,8 +124,11 @@ router.get('/playlist/:mac', async (req, res) => {
     }
   }
 
-  // Check if playlist exists
-  if (!device.playlist_url) {
+  // Check if playlist exists (M3U or Xtream)
+  const hasM3U = !!device.playlist_url;
+  const hasXtream = !!(device.xtream_host && device.xtream_username);
+  
+  if (!hasM3U && !hasXtream) {
     return res.status(404).json({
       error: 'Aucune playlist configurée',
       status: device.status,
@@ -129,14 +136,27 @@ router.get('/playlist/:mac', async (req, res) => {
     });
   }
 
-  // Return playlist info
-  res.json({
+  // Return playlist info (M3U or Xtream)
+  const response = {
     mac_address: formattedMac,
     status: device.status,
-    playlist_url: device.playlist_url,
-    playlist_content: device.playlist_content,
-    expiration_date: device.expiration_date
-  });
+    expiration_date: device.expiration_date,
+    playlist_type: device.playlist_type || 'm3u'
+  };
+
+  // Add appropriate credentials based on type
+  if (device.playlist_type === 'xtream' && device.xtream_host) {
+    response.xtream = {
+      host: device.xtream_host,
+      username: device.xtream_username,
+      password: device.xtream_password
+    };
+  } else {
+    response.playlist_url = device.playlist_url;
+    response.playlist_content = device.playlist_content;
+  }
+
+  res.json(response);
 });
 
 // Proxy endpoint to fetch external M3U playlists (solves CORS issues)
@@ -243,7 +263,7 @@ router.get('/status/:mac', (req, res) => {
 
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
-  const device = db.prepare('SELECT status, expiration_date, playlist_url FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = db.prepare('SELECT status, expiration_date, playlist_url, playlist_type, xtream_host, xtream_username FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.json({
@@ -272,10 +292,14 @@ router.get('/status/:mac', (req, res) => {
     if (daysRemaining < 0) daysRemaining = 0;
   }
 
+  // Check if device has playlist configured (M3U or Xtream)
+  const hasPlaylist = !!(device.playlist_url || (device.xtream_host && device.xtream_username));
+
   res.json({
     registered: true,
     status,
-    has_playlist: !!device.playlist_url,
+    has_playlist: hasPlaylist,
+    playlist_type: device.playlist_type || 'm3u',
     days_remaining: daysRemaining,
     expiration_date: device.expiration_date
   });

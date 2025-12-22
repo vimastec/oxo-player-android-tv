@@ -1,9 +1,19 @@
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const fs = require('fs');
 
-const dbPath = path.join(__dirname, '../database.sqlite');
+// Support Railway volume (/data) ou dossier local
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '../database.sqlite');
+
+// Créer le dossier parent si nécessaire (pour Railway volume)
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
 const db = new Database(dbPath);
+console.log(`📁 Database path: ${dbPath}`);
 
 function init() {
   // Create tables
@@ -37,6 +47,10 @@ function init() {
       reseller_id INTEGER,
       playlist_url TEXT,
       playlist_content TEXT,
+      playlist_type TEXT DEFAULT 'm3u',
+      xtream_host TEXT,
+      xtream_username TEXT,
+      xtream_password TEXT,
       status TEXT DEFAULT 'trial',
       trial_start DATETIME DEFAULT CURRENT_TIMESTAMP,
       activation_date DATETIME,

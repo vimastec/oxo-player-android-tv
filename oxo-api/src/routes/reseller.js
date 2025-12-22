@@ -231,12 +231,71 @@ router.put('/devices/:mac/playlist-url', (req, res) => {
     return res.status(404).json({ error: 'Appareil non trouvé ou non autorisé' });
   }
 
-  db.prepare('UPDATE devices SET playlist_url = ? WHERE mac_address = ?').run(url, formattedMac);
+  // Clear Xtream credentials when setting M3U URL
+  db.prepare(`
+    UPDATE devices 
+    SET playlist_url = ?, 
+        playlist_type = 'm3u',
+        xtream_host = NULL, 
+        xtream_username = NULL, 
+        xtream_password = NULL 
+    WHERE mac_address = ?
+  `).run(url, formattedMac);
 
   res.json({
     message: 'URL playlist mise à jour',
     mac_address: formattedMac,
     playlist_url: url
+  });
+});
+
+// Set Xtream Code credentials for a device
+router.put('/devices/:mac/xtream', (req, res) => {
+  const { mac } = req.params;
+  const { host, username, password } = req.body;
+  const resellerId = req.user.id;
+
+  // Validate required fields
+  if (!host || !username || !password) {
+    return res.status(400).json({ error: 'Host, username et password sont requis' });
+  }
+
+  // Normalize MAC
+  const formattedMac = mac.toUpperCase().replace(/[^A-F0-9]/g, '').match(/.{2}/g)?.join(':');
+  
+  if (!formattedMac) {
+    return res.status(400).json({ error: 'Format MAC invalide' });
+  }
+
+  // Check device belongs to reseller
+  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?').get(formattedMac, resellerId);
+  
+  if (!device) {
+    return res.status(404).json({ error: 'Appareil non trouvé ou non autorisé' });
+  }
+
+  // Clean host URL (remove trailing slash, http/https)
+  let cleanHost = host.trim();
+  cleanHost = cleanHost.replace(/^https?:\/\//, '');
+  cleanHost = cleanHost.replace(/\/$/, '');
+
+  // Update device with Xtream credentials
+  db.prepare(`
+    UPDATE devices 
+    SET playlist_type = 'xtream',
+        xtream_host = ?,
+        xtream_username = ?,
+        xtream_password = ?,
+        playlist_url = NULL,
+        playlist_content = NULL
+    WHERE mac_address = ?
+  `).run(cleanHost, username, password, formattedMac);
+
+  res.json({
+    message: 'Identifiants Xtream Code configurés',
+    mac_address: formattedMac,
+    xtream_host: cleanHost,
+    xtream_username: username
   });
 });
 
@@ -256,6 +315,15 @@ router.get('/transactions', (req, res) => {
 });
 
 module.exports = router;
+
+
+
+
+
+
+
+
+
 
 
 
