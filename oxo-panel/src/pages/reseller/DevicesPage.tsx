@@ -7,6 +7,9 @@ interface Device {
   mac_address: string;
   status: string;
   playlist_url: string;
+  playlist_type: string;
+  xtream_host: string;
+  xtream_username: string;
   activation_date: string;
   expiration_date: string;
   last_seen: string;
@@ -17,8 +20,12 @@ export function ResellerDevicesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [playlistType, setPlaylistType] = useState<'m3u' | 'xtream'>('m3u');
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [playlistFile, setPlaylistFile] = useState<File | null>(null);
+  const [xtreamHost, setXtreamHost] = useState('');
+  const [xtreamUsername, setXtreamUsername] = useState('');
+  const [xtreamPassword, setXtreamPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
@@ -39,7 +46,20 @@ export function ResellerDevicesPage() {
 
   const handleOpenPlaylistModal = (device: Device) => {
     setSelectedDevice(device);
-    setPlaylistUrl(device.playlist_url || '');
+    // Pre-fill based on existing configuration
+    if (device.playlist_type === 'xtream' && device.xtream_host) {
+      setPlaylistType('xtream');
+      setXtreamHost(device.xtream_host || '');
+      setXtreamUsername(device.xtream_username || '');
+      setXtreamPassword(''); // Don't show password for security
+      setPlaylistUrl('');
+    } else {
+      setPlaylistType('m3u');
+      setPlaylistUrl(device.playlist_url || '');
+      setXtreamHost('');
+      setXtreamUsername('');
+      setXtreamPassword('');
+    }
     setPlaylistFile(null);
     setUploadSuccess(false);
     setShowPlaylistModal(true);
@@ -51,10 +71,30 @@ export function ResellerDevicesPage() {
 
     setIsSubmitting(true);
     try {
-      if (playlistFile) {
-        await resellerApi.uploadPlaylist(selectedDevice.mac_address, playlistFile);
-      } else if (playlistUrl) {
-        await resellerApi.setPlaylistUrl(selectedDevice.mac_address, playlistUrl);
+      if (playlistType === 'xtream') {
+        // Save Xtream credentials
+        if (!xtreamHost || !xtreamUsername || !xtreamPassword) {
+          alert('Veuillez remplir tous les champs Xtream Code');
+          setIsSubmitting(false);
+          return;
+        }
+        await resellerApi.setXtreamCredentials(
+          selectedDevice.mac_address,
+          xtreamHost,
+          xtreamUsername,
+          xtreamPassword
+        );
+      } else {
+        // Save M3U playlist
+        if (playlistFile) {
+          await resellerApi.uploadPlaylist(selectedDevice.mac_address, playlistFile);
+        } else if (playlistUrl) {
+          await resellerApi.setPlaylistUrl(selectedDevice.mac_address, playlistUrl);
+        } else {
+          alert('Veuillez fournir une URL ou un fichier M3U');
+          setIsSubmitting(false);
+          return;
+        }
       }
       setUploadSuccess(true);
       setTimeout(() => {
@@ -145,8 +185,10 @@ export function ResellerDevicesPage() {
                   <div className="flex justify-between">
                     <span className="text-muted">Playlist</span>
                     <span>
-                      {device.playlist_url ? (
-                        <span className="text-success">✓ Configurée</span>
+                      {device.playlist_type === 'xtream' && device.xtream_host ? (
+                        <span className="text-success">✓ Xtream Code</span>
+                      ) : device.playlist_url ? (
+                        <span className="text-success">✓ M3U</span>
                       ) : (
                         <span className="text-warning">Non configurée</span>
                       )}
@@ -159,7 +201,7 @@ export function ResellerDevicesPage() {
                   className="btn btn-secondary w-full mt-4"
                 >
                   <Upload className="w-4 h-4" />
-                  {device.playlist_url ? 'Modifier playlist' : 'Ajouter playlist'}
+                  {device.playlist_url || device.xtream_host ? 'Modifier playlist' : 'Ajouter playlist'}
                 </button>
               </div>
             );
@@ -202,48 +244,136 @@ export function ResellerDevicesPage() {
                   </p>
                 </div>
 
-                {/* URL Option */}
+                {/* Type Selection */}
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
-                    <Link className="w-4 h-4" />
-                    URL de la playlist M3U
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="http://exemple.com/playlist.m3u"
-                    value={playlistUrl}
-                    onChange={(e) => {
-                      setPlaylistUrl(e.target.value);
-                      setPlaylistFile(null);
-                    }}
-                  />
+                  <label className="block text-sm font-medium mb-3">Type de configuration</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPlaylistType('m3u')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        playlistType === 'm3u'
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <Link className="w-6 h-6 mx-auto mb-2" />
+                      <p className="font-semibold">M3U URL</p>
+                      <p className="text-xs text-muted mt-1">Lien playlist</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlaylistType('xtream')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        playlistType === 'xtream'
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <Tv className="w-6 h-6 mx-auto mb-2" />
+                      <p className="font-semibold">Xtream Code</p>
+                      <p className="text-xs text-muted mt-1">Identifiants API</p>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="text-center text-muted text-sm">ou</div>
+                {/* M3U Configuration */}
+                {playlistType === 'm3u' && (
+                  <>
+                    {/* URL Option */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
+                        <Link className="w-4 h-4" />
+                        URL de la playlist M3U
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="http://exemple.com/playlist.m3u"
+                        value={playlistUrl}
+                        onChange={(e) => {
+                          setPlaylistUrl(e.target.value);
+                          setPlaylistFile(null);
+                        }}
+                      />
+                    </div>
 
-                {/* File Option */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
-                    <Upload className="w-4 h-4" />
-                    Uploader un fichier M3U
-                  </label>
-                  <label className="block w-full p-8 border-2 border-dashed border-border rounded-xl text-center cursor-pointer hover:border-primary transition-colors">
-                    {playlistFile ? (
-                      <span className="text-primary">{playlistFile.name}</span>
-                    ) : (
-                      <span className="text-muted">Cliquez pour sélectionner un fichier</span>
-                    )}
-                    <input
-                      type="file"
-                      accept=".m3u,.m3u8,.txt"
-                      className="hidden"
-                      onChange={(e) => {
-                        setPlaylistFile(e.target.files?.[0] || null);
-                        setPlaylistUrl('');
-                      }}
-                    />
-                  </label>
-                </div>
+                    <div className="text-center text-muted text-sm">ou</div>
+
+                    {/* File Option */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
+                        <Upload className="w-4 h-4" />
+                        Uploader un fichier M3U
+                      </label>
+                      <label className="block w-full p-8 border-2 border-dashed border-border rounded-xl text-center cursor-pointer hover:border-primary transition-colors">
+                        {playlistFile ? (
+                          <span className="text-primary">{playlistFile.name}</span>
+                        ) : (
+                          <span className="text-muted">Cliquez pour sélectionner un fichier</span>
+                        )}
+                        <input
+                          type="file"
+                          accept=".m3u,.m3u8,.txt"
+                          className="hidden"
+                          onChange={(e) => {
+                            setPlaylistFile(e.target.files?.[0] || null);
+                            setPlaylistUrl('');
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {/* Xtream Code Configuration */}
+                {playlistType === 'xtream' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-muted mb-2">
+                        Host / Serveur
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="exemple.com ou 123.45.67.89:8080"
+                        value={xtreamHost}
+                        onChange={(e) => setXtreamHost(e.target.value)}
+                      />
+                      <p className="text-xs text-muted mt-1">
+                        Sans http:// - Exemple: server.com ou 12.34.56.78:25461
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-muted mb-2">
+                        Username
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="username123"
+                        value={xtreamUsername}
+                        onChange={(e) => setXtreamUsername(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-muted mb-2">
+                        Password
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="password123"
+                        value={xtreamPassword}
+                        onChange={(e) => setXtreamPassword(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                      <p className="text-sm text-muted">
+                        ℹ️ Les identifiants Xtream Code sont fournis par votre fournisseur IPTV
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <button
@@ -255,7 +385,11 @@ export function ResellerDevicesPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting || (!playlistUrl && !playlistFile)}
+                    disabled={
+                      isSubmitting ||
+                      (playlistType === 'm3u' && !playlistUrl && !playlistFile) ||
+                      (playlistType === 'xtream' && (!xtreamHost || !xtreamUsername || !xtreamPassword))
+                    }
                     className="btn btn-primary flex-1"
                   >
                     {isSubmitting ? (
@@ -273,6 +407,15 @@ export function ResellerDevicesPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
 
 
 

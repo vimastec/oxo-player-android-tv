@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'https://oxo-api-production.up.railway.app/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -73,6 +73,8 @@ export const resellerApi = {
     api.post('/reseller/activate', { mac_address }),
   setPlaylistUrl: (mac: string, url: string) =>
     api.put(`/reseller/devices/${mac}/playlist-url`, { url }),
+  setXtreamCredentials: (mac: string, host: string, username: string, password: string) =>
+    api.put(`/reseller/devices/${mac}/xtream`, { host, username, password }),
   uploadPlaylist: (mac: string, file: File) => {
     const formData = new FormData();
     formData.append('playlist', file);
