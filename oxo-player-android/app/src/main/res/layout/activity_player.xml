@@ -17,7 +17,7 @@
         app:surface_type="surface_view"
         app:resize_mode="fit" />
 
-    <!-- Top Bar (Title + Buttons) -->
+    <!-- Top Bar (Title only) -->
     <LinearLayout
         android:id="@+id/top_bar"
         android:layout_width="match_parent"
@@ -31,79 +31,14 @@
         <!-- Title -->
         <TextView
             android:id="@+id/title_text"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:text="OXO Player"
             android:textColor="@android:color/white"
             android:textSize="20sp"
             android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end" />
-
-        <!-- Volume Control -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginEnd="16dp">
-
-            <ImageView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@android:drawable/ic_lock_silent_mode_off"
-                android:tint="@android:color/white" />
-
-            <SeekBar
-                android:id="@+id/volume_seekbar"
-                android:layout_width="100dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:progressTint="@color/primary"
-                android:thumbTint="@color/primary" />
-
-            <TextView
-                android:id="@+id/volume_text"
-                android:layout_width="40dp"
-                android:layout_height="wrap_content"
-                android:text="100%"
-                android:textColor="@android:color/white"
-                android:textSize="12sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Info Button -->
-        <ImageButton
-            android:id="@+id/btn_info"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_info"
-            android:tint="@android:color/white"
-            android:contentDescription="Info" />
-
-        <!-- Audio Track Button -->
-        <ImageButton
-            android:id="@+id/btn_audio"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_btn_speak_now"
-            android:tint="@android:color/white"
-            android:contentDescription="Audio Track"
-            android:visibility="gone" />
-
-        <!-- Subtitle Button -->
-        <ImageButton
-            android:id="@+id/btn_subtitle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_sort_alphabetically"
-            android:tint="@android:color/white"
-            android:contentDescription="Subtitles"
-            android:visibility="gone" />
 
     </LinearLayout>
 
@@ -115,6 +50,69 @@
         android:layout_gravity="center"
         android:indeterminateTint="@color/primary"
         android:visibility="gone" />
+
+    <!-- Next Episode Button (Netflix-style with countdown) -->
+    <LinearLayout
+        android:id="@+id/next_episode_container"
+        android:layout_width="wrap_content"
+        android:layout_height="52dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="140dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:background="@drawable/btn_next_episode_bg"
+        android:focusable="true"
+        android:clickable="true"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_media_play"
+            android:tint="@android:color/black" />
+
+        <TextView
+            android:id="@+id/next_episode_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Épisode suivant"
+            android:textColor="@android:color/black"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- Countdown circle -->
+        <FrameLayout
+            android:id="@+id/countdown_container"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="12dp">
+
+            <ProgressBar
+                android:id="@+id/countdown_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:indeterminate="false"
+                android:max="100"
+                android:progress="100"
+                android:progressDrawable="@drawable/countdown_circle"
+                android:rotation="-90" />
+
+            <TextView
+                android:id="@+id/countdown_text"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="5"
+                android:textColor="@android:color/black"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+    </LinearLayout>
 
 </FrameLayout>
 

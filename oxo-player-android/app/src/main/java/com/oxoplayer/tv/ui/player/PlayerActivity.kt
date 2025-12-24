@@ -1,6 +1,7 @@
 package com.oxoplayer.tv.ui.player
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
@@ -9,6 +10,7 @@ import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
@@ -31,8 +33,12 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.WatchProgressManager
+import com.oxoplayer.tv.data.models.Episode
+import com.oxoplayer.tv.data.models.Season
 
 class PlayerActivity : AppCompatActivity() {
     
@@ -53,6 +59,32 @@ class PlayerActivity : AppCompatActivity() {
     private var audioButton: ImageButton? = null
     private var subtitleButton: ImageButton? = null
     private var infoButton: ImageButton? = null
+    
+    // Netflix-style bottom row
+    private var seriesOptionsRow: View? = null
+    private var btnInfoContainer: LinearLayout? = null
+    private var btnEpisodesContainer: LinearLayout? = null
+    private var btnAudioSubtitlesContainer: LinearLayout? = null
+    
+    // Series data for Episodes feature
+    private var seriesName: String? = null
+    private var currentSeasonNumber: Int = 1
+    private var currentEpisodeId: String? = null
+    private var seasons: List<Season> = emptyList()
+    
+    // Next Episode feature (Netflix-style)
+    private var nextEpisodeContainer: LinearLayout? = null
+    private var countdownProgress: ProgressBar? = null
+    private var countdownText: TextView? = null
+    private var nextEpisode: Episode? = null
+    private var nextEpisodeSeasonNumber: Int = 0
+    private var isNextEpisodeShowing = false
+    private var countdownSeconds = 5
+    private val countdownHandler = Handler(Looper.getMainLooper())
+    private var countdownRunnable: Runnable? = null
+    private val positionCheckHandler = Handler(Looper.getMainLooper())
+    private var positionCheckRunnable: Runnable? = null
+    private val NEXT_EPISODE_THRESHOLD_MS = 15000L // Show button 15 seconds before end
     
     // Audio Manager
     private lateinit var audioManager: AudioManager
@@ -145,11 +177,16 @@ class PlayerActivity : AppCompatActivity() {
         topBar = findViewById(R.id.top_bar)
         titleText = findViewById(R.id.title_text)
         loadingIndicator = findViewById(R.id.loading_indicator)
-        volumeSeekBar = findViewById(R.id.volume_seekbar)
-        volumeText = findViewById(R.id.volume_text)
-        audioButton = findViewById(R.id.btn_audio)
-        subtitleButton = findViewById(R.id.btn_subtitle)
-        infoButton = findViewById(R.id.btn_info)
+        
+        // Next Episode button (Netflix-style)
+        nextEpisodeContainer = findViewById(R.id.next_episode_container)
+        countdownProgress = findViewById(R.id.countdown_progress)
+        countdownText = findViewById(R.id.countdown_text)
+        
+        // Setup Next Episode button click
+        nextEpisodeContainer?.setOnClickListener {
+            playNextEpisodeNow()
+        }
         
         // Sync top bar visibility with player controller
         playerView.setControllerVisibilityListener(
@@ -158,6 +195,21 @@ class PlayerActivity : AppCompatActivity() {
             }
         )
         
+        // Find controls inside the PlayerView's controller (custom_player_controls.xml)
+        // These will be available after the controller is inflated
+        playerView.post {
+            volumeSeekBar = playerView.findViewById(R.id.volume_seekbar)
+            volumeText = playerView.findViewById(R.id.volume_text)
+            
+            setupBottomControls()
+        }
+    }
+    
+    /**
+     * Setup the bottom control buttons (volume, audio, subtitle, info)
+     * Called after PlayerView controller is inflated
+     */
+    private fun setupBottomControls() {
         // Setup volume seekbar
         volumeSeekBar?.max = maxVolume
         volumeSeekBar?.progress = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -174,20 +226,412 @@ class PlayerActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
         
-        // Audio button
-        audioButton?.setOnClickListener {
-            showAudioTrackSelector()
-        }
+        // Netflix-style bottom row (for movies and series)
+        seriesOptionsRow = playerView.findViewById(R.id.series_options_row)
+        btnInfoContainer = playerView.findViewById(R.id.btn_info_container)
+        btnEpisodesContainer = playerView.findViewById(R.id.btn_episodes_container)
+        btnAudioSubtitlesContainer = playerView.findViewById(R.id.btn_audio_subtitles_container)
         
-        // Subtitle button
-        subtitleButton?.setOnClickListener {
-            showSubtitleTrackSelector()
+        // Show bottom options row for movies and series
+        if (type == "MOVIE" || type == "SERIES") {
+            seriesOptionsRow?.visibility = View.VISIBLE
+            
+            // Show Episodes button only for series with seasons data
+            if (type == "SERIES" && seasons.isNotEmpty()) {
+                btnEpisodesContainer?.visibility = View.VISIBLE
+            }
         }
         
         // Info button
-        infoButton?.setOnClickListener {
+        btnInfoContainer?.setOnClickListener {
             showStreamInfo()
         }
+        
+        // Episodes button
+        btnEpisodesContainer?.setOnClickListener {
+            showEpisodesSelector()
+        }
+        
+        // Audio & Subtitles button
+        btnAudioSubtitlesContainer?.setOnClickListener {
+            showAudioSubtitlesDialog()
+        }
+    }
+    
+    /**
+     * Show Audio & Subtitles combined dialog
+     */
+    private fun showAudioSubtitlesDialog() {
+        val options = mutableListOf<String>()
+        
+        if (audioTracks.isNotEmpty()) {
+            options.add("🔊 Piste Audio (${audioTracks.size})")
+        }
+        if (subtitleTracks.isNotEmpty()) {
+            options.add("📝 Sous-titres (${subtitleTracks.size})")
+        }
+        
+        if (options.isEmpty()) {
+            Toast.makeText(this, "Aucune piste disponible", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
+            .setTitle("Audio & Sous-titres")
+            .setItems(options.toTypedArray()) { _, which ->
+                when {
+                    options[which].contains("Audio") -> showAudioTrackSelector()
+                    options[which].contains("Sous-titres") -> showSubtitleTrackSelector()
+                }
+            }
+            .setNegativeButton("Fermer", null)
+            .show()
+    }
+    
+    /**
+     * Show episodes selector dialog (Netflix-style)
+     */
+    private fun showEpisodesSelector() {
+        if (seasons.isEmpty()) {
+            Toast.makeText(this, "Aucun épisode disponible", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // If only one season, show episodes directly
+        if (seasons.size == 1) {
+            showEpisodesForSeason(seasons[0])
+            return
+        }
+        
+        // Multiple seasons - show season selector first
+        val seasonNames = seasons.map { "Saison ${it.seasonNumber} (${it.episodes.size} épisodes)" }.toTypedArray()
+        
+        // Find current season index
+        val currentIndex = seasons.indexOfFirst { it.seasonNumber == currentSeasonNumber }.coerceAtLeast(0)
+        
+        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
+            .setTitle("📺 Choisir une saison")
+            .setSingleChoiceItems(seasonNames, currentIndex) { dialog, which ->
+                dialog.dismiss()
+                showEpisodesForSeason(seasons[which])
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }
+    
+    /**
+     * Show episodes list for a specific season
+     */
+    private fun showEpisodesForSeason(season: Season) {
+        val episodes = season.episodes
+        if (episodes.isEmpty()) {
+            Toast.makeText(this, "Aucun épisode dans cette saison", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val episodeNames = episodes.map { episode ->
+            val prefix = if (episode.id == currentEpisodeId) "▶ " else "   "
+            "${prefix}E${episode.episodeNumber}: ${episode.name}"
+        }.toTypedArray()
+        
+        // Find current episode index
+        val currentIndex = episodes.indexOfFirst { it.id == currentEpisodeId }.coerceAtLeast(0)
+        
+        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
+            .setTitle("📺 Saison ${season.seasonNumber} - Épisodes")
+            .setSingleChoiceItems(episodeNames, currentIndex) { dialog, which ->
+                dialog.dismiss()
+                playEpisode(episodes[which], season.seasonNumber)
+            }
+            .setNegativeButton("Annuler", null)
+            .setNeutralButton("↩ Saisons") { dialog, _ ->
+                dialog.dismiss()
+                showEpisodesSelector()
+            }
+            .show()
+    }
+    
+    /**
+     * Play a different episode
+     */
+    private fun playEpisode(episode: Episode, seasonNumber: Int) {
+        // Don't restart if it's the same episode
+        if (episode.id == currentEpisodeId) {
+            return
+        }
+        
+        // Save current progress before switching
+        saveWatchProgress()
+        
+        // Update current episode tracking
+        currentEpisodeId = episode.id
+        currentSeasonNumber = seasonNumber
+        
+        // Update title
+        val newTitle = "$seriesName - ${episode.name}"
+        title = newTitle
+        titleText?.text = newTitle
+        
+        // Update stream URL
+        streamUrl = episode.streamUrl
+        
+        // Reset resume position for new episode
+        resumePosition = 0L
+        
+        // Check if there's saved progress for this episode
+        if (WatchProgressManager.hasProgress(episode.streamUrl)) {
+            val progress = WatchProgressManager.getProgress(episode.streamUrl)
+            if (progress != null) {
+                val formattedTime = WatchProgressManager.formatTime(progress.positionMs)
+                val progressPercent = (progress.progressPercent * 100).toInt()
+                
+                AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
+                    .setTitle("📺 Reprendre la lecture")
+                    .setMessage("Vous avez regardé ${progressPercent}% de cet épisode.\n\nReprendre à $formattedTime ?")
+                    .setPositiveButton("▶️ Reprendre") { _, _ ->
+                        resumePosition = WatchProgressManager.getResumePosition(episode.streamUrl)
+                        loadNewEpisode(episode.streamUrl)
+                    }
+                    .setNegativeButton("🔄 Recommencer") { _, _ ->
+                        WatchProgressManager.removeProgress(episode.streamUrl)
+                        loadNewEpisode(episode.streamUrl)
+                    }
+                    .show()
+                return
+            }
+        }
+        
+        loadNewEpisode(episode.streamUrl)
+    }
+    
+    /**
+     * Load and play a new episode stream
+     */
+    private fun loadNewEpisode(url: String) {
+        try {
+            // Hide next episode button if showing
+            hideNextEpisodeButton()
+            
+            // Create new media source
+            val mediaSource = createMediaSource(url)
+            
+            // Stop current playback
+            player?.stop()
+            
+            // Set new media source
+            player?.setMediaSource(mediaSource)
+            player?.prepare()
+            
+            // Seek to resume position if available
+            if (resumePosition > 0) {
+                player?.seekTo(resumePosition)
+            }
+            
+            player?.playWhenReady = true
+            
+            // Find next episode for auto-play feature
+            findNextEpisode()
+            
+            Toast.makeText(this, "Lecture: ${title}", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            android.util.Log.e("PlayerActivity", "Error loading episode", e)
+            Toast.makeText(this, "Erreur de chargement", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    // ==================== Next Episode Feature (Netflix-style) ====================
+    
+    /**
+     * Find the next episode in the series
+     */
+    private fun findNextEpisode() {
+        if (type != "SERIES" || seasons.isEmpty() || currentEpisodeId == null) {
+            nextEpisode = null
+            return
+        }
+        
+        // Find current season
+        val currentSeasonIndex = seasons.indexOfFirst { it.seasonNumber == currentSeasonNumber }
+        if (currentSeasonIndex < 0) {
+            nextEpisode = null
+            return
+        }
+        
+        val currentSeason = seasons[currentSeasonIndex]
+        val currentEpisodeIndex = currentSeason.episodes.indexOfFirst { it.id == currentEpisodeId }
+        
+        if (currentEpisodeIndex < 0) {
+            nextEpisode = null
+            return
+        }
+        
+        // Check if there's a next episode in current season
+        if (currentEpisodeIndex < currentSeason.episodes.size - 1) {
+            nextEpisode = currentSeason.episodes[currentEpisodeIndex + 1]
+            nextEpisodeSeasonNumber = currentSeasonNumber
+            android.util.Log.d("PlayerActivity", "Next episode found: ${nextEpisode?.name} (same season)")
+            return
+        }
+        
+        // Check if there's a next season
+        if (currentSeasonIndex < seasons.size - 1) {
+            val nextSeason = seasons[currentSeasonIndex + 1]
+            if (nextSeason.episodes.isNotEmpty()) {
+                nextEpisode = nextSeason.episodes[0]
+                nextEpisodeSeasonNumber = nextSeason.seasonNumber
+                android.util.Log.d("PlayerActivity", "Next episode found: ${nextEpisode?.name} (next season ${nextEpisodeSeasonNumber})")
+                return
+            }
+        }
+        
+        // No next episode
+        nextEpisode = null
+        android.util.Log.d("PlayerActivity", "No next episode available")
+    }
+    
+    /**
+     * Start monitoring playback position for next episode feature
+     */
+    private fun startPositionMonitoring() {
+        if (type != "SERIES" || nextEpisode == null) {
+            return
+        }
+        
+        positionCheckRunnable = object : Runnable {
+            override fun run() {
+                checkForNextEpisodeTrigger()
+                positionCheckHandler.postDelayed(this, 1000) // Check every second
+            }
+        }
+        positionCheckHandler.post(positionCheckRunnable!!)
+    }
+    
+    /**
+     * Stop position monitoring
+     */
+    private fun stopPositionMonitoring() {
+        positionCheckRunnable?.let { positionCheckHandler.removeCallbacks(it) }
+        positionCheckRunnable = null
+    }
+    
+    /**
+     * Check if we should show the next episode button
+     */
+    private fun checkForNextEpisodeTrigger() {
+        val exoPlayer = player ?: return
+        if (nextEpisode == null || isNextEpisodeShowing) return
+        
+        val duration = exoPlayer.duration
+        val position = exoPlayer.currentPosition
+        
+        if (duration <= 0) return
+        
+        val remainingTime = duration - position
+        
+        // Show next episode button when less than threshold remaining
+        if (remainingTime in 1..NEXT_EPISODE_THRESHOLD_MS) {
+            showNextEpisodeButton()
+        }
+    }
+    
+    /**
+     * Show the next episode button with countdown animation
+     */
+    private fun showNextEpisodeButton() {
+        if (isNextEpisodeShowing || nextEpisode == null) return
+        
+        isNextEpisodeShowing = true
+        countdownSeconds = 5
+        
+        // Update UI
+        runOnUiThread {
+            nextEpisodeContainer?.visibility = View.VISIBLE
+            countdownText?.text = countdownSeconds.toString()
+            countdownProgress?.progress = 100
+            
+            // Animate entrance
+            nextEpisodeContainer?.alpha = 0f
+            nextEpisodeContainer?.translationX = 100f
+            nextEpisodeContainer?.animate()
+                ?.alpha(1f)
+                ?.translationX(0f)
+                ?.setDuration(300)
+                ?.start()
+        }
+        
+        // Start countdown
+        startCountdown()
+        
+        android.util.Log.d("PlayerActivity", "Showing next episode button: ${nextEpisode?.name}")
+    }
+    
+    /**
+     * Hide the next episode button
+     */
+    private fun hideNextEpisodeButton() {
+        isNextEpisodeShowing = false
+        stopCountdown()
+        
+        runOnUiThread {
+            nextEpisodeContainer?.animate()
+                ?.alpha(0f)
+                ?.translationX(100f)
+                ?.setDuration(200)
+                ?.withEndAction {
+                    nextEpisodeContainer?.visibility = View.GONE
+                }
+                ?.start()
+        }
+    }
+    
+    /**
+     * Start the countdown timer
+     */
+    private fun startCountdown() {
+        stopCountdown()
+        
+        countdownRunnable = object : Runnable {
+            override fun run() {
+                countdownSeconds--
+                
+                runOnUiThread {
+                    countdownText?.text = countdownSeconds.toString()
+                    // Animate progress (from 100 to 0 over 5 seconds)
+                    val progress = (countdownSeconds * 20) // 5->100, 4->80, 3->60, 2->40, 1->20, 0->0
+                    countdownProgress?.progress = progress
+                }
+                
+                if (countdownSeconds <= 0) {
+                    // Auto-play next episode
+                    playNextEpisodeNow()
+                } else {
+                    countdownHandler.postDelayed(this, 1000)
+                }
+            }
+        }
+        countdownHandler.postDelayed(countdownRunnable!!, 1000)
+    }
+    
+    /**
+     * Stop the countdown timer
+     */
+    private fun stopCountdown() {
+        countdownRunnable?.let { countdownHandler.removeCallbacks(it) }
+        countdownRunnable = null
+    }
+    
+    /**
+     * Play the next episode immediately
+     */
+    private fun playNextEpisodeNow() {
+        val episode = nextEpisode ?: return
+        
+        stopCountdown()
+        hideNextEpisodeButton()
+        
+        // Play the next episode
+        playEpisode(episode, nextEpisodeSeasonNumber)
     }
     
     private fun parseIntent() {
@@ -198,11 +642,35 @@ class PlayerActivity : AppCompatActivity() {
         
         titleText?.text = title
         
+        // Parse series data for Episodes feature
+        if (type == "SERIES") {
+            seriesName = intent.getStringExtra("SERIES_NAME")
+            currentSeasonNumber = intent.getIntExtra("CURRENT_SEASON", 1)
+            currentEpisodeId = intent.getStringExtra("CURRENT_EPISODE_ID")
+            
+            // Parse seasons JSON
+            val seasonsJson = intent.getStringExtra("SEASONS_JSON")
+            if (!seasonsJson.isNullOrEmpty()) {
+                try {
+                    val gson = Gson()
+                    val typeToken = object : TypeToken<List<Season>>() {}.type
+                    seasons = gson.fromJson(seasonsJson, typeToken)
+                    android.util.Log.d("PlayerActivity", "Parsed ${seasons.size} seasons from intent")
+                } catch (e: Exception) {
+                    android.util.Log.e("PlayerActivity", "Error parsing seasons JSON", e)
+                    seasons = emptyList()
+                }
+            }
+        }
+        
         android.util.Log.d("PlayerActivity", "===== PLAYBACK INFO =====")
         android.util.Log.d("PlayerActivity", "Title: $title")
         android.util.Log.d("PlayerActivity", "Type: $type")
         android.util.Log.d("PlayerActivity", "Cover: $cover")
         android.util.Log.d("PlayerActivity", "URL: $streamUrl")
+        if (type == "SERIES") {
+            android.util.Log.d("PlayerActivity", "Series: $seriesName, Season: $currentSeasonNumber, Seasons count: ${seasons.size}")
+        }
         android.util.Log.d("PlayerActivity", "========================")
     }
     
@@ -392,9 +860,18 @@ class PlayerActivity : AppCompatActivity() {
                                 retryCount = 0 // Reset retry count on success
                                 // Update tracks when ready
                                 updateAvailableTracks()
+                                
+                                // Start next episode monitoring for series
+                                if (type == "SERIES" && nextEpisode == null) {
+                                    findNextEpisode()
+                                }
+                                startPositionMonitoring()
                             }
                             Player.STATE_ENDED -> {
-                                if (type == "MOVIE" || type == "SERIES") {
+                                // For series: auto-play next episode if available
+                                if (type == "SERIES" && nextEpisode != null) {
+                                    playNextEpisodeNow()
+                                } else if (type == "MOVIE" || type == "SERIES") {
                                     finish()
                                 }
                             }
@@ -713,12 +1190,20 @@ class PlayerActivity : AppCompatActivity() {
         super.onPause()
         // Save watch progress before pausing
         saveWatchProgress()
+        // Stop next episode monitoring
+        stopPositionMonitoring()
+        stopCountdown()
+        hideNextEpisodeButton()
         player?.pause()
     }
     
     override fun onResume() {
         super.onResume()
         player?.play()
+        // Resume position monitoring if playing series
+        if (type == "SERIES" && player?.isPlaying == true) {
+            startPositionMonitoring()
+        }
     }
     
     override fun onDestroy() {
@@ -726,6 +1211,11 @@ class PlayerActivity : AppCompatActivity() {
         // Save watch progress before destroying
         saveWatchProgress()
         handler.removeCallbacksAndMessages(null)
+        
+        // Stop next episode monitoring
+        stopPositionMonitoring()
+        stopCountdown()
+        
         releasePlayer()
     }
     

@@ -3,10 +3,12 @@ package com.oxoplayer.tv.ui.movies
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.android.material.card.MaterialCardView
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.models.XtreamMovie
 
@@ -18,7 +20,15 @@ class XtreamMovieAdapter(
     private val onMovieClick: (XtreamMovie) -> Unit
 ) : RecyclerView.Adapter<XtreamMovieAdapter.ViewHolder>() {
     
+    // Animation constants
+    private val SCALE_FOCUSED = 1.15f
+    private val SCALE_NORMAL = 1.0f
+    private val ELEVATION_FOCUSED = 24f
+    private val ELEVATION_NORMAL = 4f
+    private val ANIMATION_DURATION = 200L
+    
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val card: MaterialCardView = view.findViewById(R.id.movieCard)
         val poster: ImageView = view.findViewById(R.id.moviePoster)
         val name: TextView = view.findViewById(R.id.movieName)
         
@@ -41,17 +51,57 @@ class XtreamMovieAdapter(
                 onMovieClick(movie)
             }
             
-            // Focus handling for TV
+            // Focus handling for TV - Netflix-style animation
             itemView.isFocusable = true
             itemView.isFocusableInTouchMode = false
             
             itemView.setOnFocusChangeListener { v, hasFocus ->
-                val scale = if (hasFocus) 1.08f else 1.0f
-                v.animate()
-                    .scaleX(scale)
-                    .scaleY(scale)
-                    .setDuration(150)
-                    .start()
+                if (hasFocus) {
+                    // Scale up and bring to front
+                    v.animate()
+                        .scaleX(SCALE_FOCUSED)
+                        .scaleY(SCALE_FOCUSED)
+                        .setDuration(ANIMATION_DURATION)
+                        .setInterpolator(OvershootInterpolator(1.2f))
+                        .start()
+                    
+                    // Increase elevation to appear on top
+                    card.animate()
+                        .translationZ(ELEVATION_FOCUSED)
+                        .setDuration(ANIMATION_DURATION)
+                        .start()
+                    
+                    // Add border effect
+                    card.strokeWidth = 4
+                    card.setStrokeColor(android.content.res.ColorStateList.valueOf(
+                        itemView.context.getColor(R.color.primary)
+                    ))
+                    
+                    // Bring to front in parent
+                    v.parent?.let { parent ->
+                        (parent as? ViewGroup)?.let { vg ->
+                            vg.clipChildren = false
+                            vg.clipToPadding = false
+                        }
+                    }
+                } else {
+                    // Scale back to normal
+                    v.animate()
+                        .scaleX(SCALE_NORMAL)
+                        .scaleY(SCALE_NORMAL)
+                        .setDuration(ANIMATION_DURATION)
+                        .setInterpolator(OvershootInterpolator(1.0f))
+                        .start()
+                    
+                    // Reset elevation
+                    card.animate()
+                        .translationZ(ELEVATION_NORMAL)
+                        .setDuration(ANIMATION_DURATION)
+                        .start()
+                    
+                    // Remove border
+                    card.strokeWidth = 0
+                }
             }
         }
     }
@@ -68,6 +118,7 @@ class XtreamMovieAdapter(
     
     override fun getItemCount() = moviesList.size
 }
+
 
 
 

@@ -22,6 +22,10 @@ class XtreamLiveStreamsAdapter(
     private var lastClickTime = 0L
     private var lastClickedPosition = -1
     
+    // For TV remote double-click detection
+    private var lastKeyPressTime = 0L
+    private var lastKeyPressPosition = -1
+    
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val logo: ImageView = view.findViewById(R.id.channelLogo)
         val name: TextView = view.findViewById(R.id.channelName)
@@ -86,11 +90,18 @@ class XtreamLiveStreamsAdapter(
             }
             
             // Handle Enter/OK button on TV remote - This plays the channel
+            // Double-press detection: 1st press = mini preview, 2nd press = fullscreen
             itemView.setOnKeyListener { _, keyCode, event ->
                 if (event.action == android.view.KeyEvent.ACTION_DOWN &&
                     (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
                      keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
-                    onStreamClick(stream, position, false)
+                    
+                    val currentTime = System.currentTimeMillis()
+                    val isDoublePress = (currentTime - lastKeyPressTime < 800) && (lastKeyPressPosition == position)
+                    lastKeyPressTime = currentTime
+                    lastKeyPressPosition = position
+                    
+                    onStreamClick(stream, position, isDoublePress)
                     true
                 } else {
                     false

@@ -13,6 +13,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.gson.Gson
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.DataManager
 import com.oxoplayer.tv.data.models.Episode
@@ -340,6 +341,22 @@ class SeriesDetailActivity : AppCompatActivity() {
         intent.putExtra("TYPE", "SERIES")
         // Always use series cover for "Continue Watching" section consistency
         intent.putExtra("COVER", series?.cover)
+        
+        // Pass series info for Episodes button
+        intent.putExtra("SERIES_NAME", series?.name)
+        intent.putExtra("CURRENT_SEASON", selectedSeasonIndex + 1) // Season number (1-based)
+        intent.putExtra("CURRENT_EPISODE_ID", episode.id)
+        
+        // Pass all seasons data as JSON for episode navigation
+        try {
+            val gson = Gson()
+            val seasonsJson = gson.toJson(seasons)
+            intent.putExtra("SEASONS_JSON", seasonsJson)
+            android.util.Log.d(TAG, "Passing ${seasons.size} seasons to player")
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "Error serializing seasons", e)
+        }
+        
         startActivity(intent)
         
         android.util.Log.d(TAG, "Playing episode: ${episode.name} with series cover: ${series?.cover}")

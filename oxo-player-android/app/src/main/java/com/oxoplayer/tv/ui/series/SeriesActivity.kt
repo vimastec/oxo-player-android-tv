@@ -157,7 +157,15 @@ class SeriesActivity : AppCompatActivity() {
         categoriesRecyclerView.layoutManager = LinearLayoutManager(this)
         
         // Series Grid (Main content)
-        seriesRecyclerView.layoutManager = GridLayoutManager(this, 5)
+        seriesRecyclerView.layoutManager = GridLayoutManager(this, 6)
+        
+        // Allow items to scale outside their bounds (Netflix-style focus animation)
+        seriesRecyclerView.clipChildren = false
+        seriesRecyclerView.clipToPadding = false
+        (seriesRecyclerView.parent as? android.view.ViewGroup)?.let {
+            it.clipChildren = false
+            it.clipToPadding = false
+        }
     }
     
     private fun loadCategories() {

@@ -159,7 +159,15 @@ class MoviesActivity : AppCompatActivity() {
         categoriesRecyclerView.layoutManager = LinearLayoutManager(this)
         
         // Movies Grid (Main content)
-        moviesRecyclerView.layoutManager = GridLayoutManager(this, 5)
+        moviesRecyclerView.layoutManager = GridLayoutManager(this, 6)
+        
+        // Allow items to scale outside their bounds (Netflix-style focus animation)
+        moviesRecyclerView.clipChildren = false
+        moviesRecyclerView.clipToPadding = false
+        (moviesRecyclerView.parent as? android.view.ViewGroup)?.let {
+            it.clipChildren = false
+            it.clipToPadding = false
+        }
     }
     
     private fun loadCategories() {

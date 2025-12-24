@@ -20,6 +20,10 @@ class ChannelsAdapter(
     private var lastClickTime = 0L
     private var lastClickPosition = -1
     
+    // For TV remote double-click detection
+    private var lastKeyPressTime = 0L
+    private var lastKeyPressPosition = -1
+    
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val card: CardView = view.findViewById(R.id.channelCard)
         val logo: ImageView = view.findViewById(R.id.channelLogo)
@@ -86,12 +90,18 @@ class ChannelsAdapter(
             }
             
             // Handle Enter/OK button on TV remote - This plays the channel
+            // Double-press detection: 1st press = mini preview, 2nd press = fullscreen
             card.setOnKeyListener { _, keyCode, event ->
                 if (event.action == android.view.KeyEvent.ACTION_DOWN &&
                     (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
                      keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
-                    // On TV remote, pressing OK/Enter should play the channel
-                    onChannelClick(channel, position, false)
+                    
+                    val currentTime = System.currentTimeMillis()
+                    val isDoublePress = (currentTime - lastKeyPressTime < 800) && (lastKeyPressPosition == position)
+                    lastKeyPressTime = currentTime
+                    lastKeyPressPosition = position
+                    
+                    onChannelClick(channel, position, isDoublePress)
                     true
                 } else {
                     false

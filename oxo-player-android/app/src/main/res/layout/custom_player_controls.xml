@@ -11,8 +11,8 @@
         android:layout_gravity="bottom"
         android:orientation="vertical"
         android:background="@drawable/player_controls_background"
-        android:paddingTop="16dp"
-        android:paddingBottom="16dp">
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
 
         <!-- Progress Bar Row -->
         <LinearLayout
@@ -55,54 +55,189 @@
 
         </LinearLayout>
 
-        <!-- Control Buttons Row -->
+        <!-- Control Buttons Row with Volume and Track Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <!-- Volume Control (Left side) -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_lock_silent_mode_off"
+                    android:tint="@android:color/white" />
+
+                <SeekBar
+                    android:id="@+id/volume_seekbar"
+                    android:layout_width="80dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:progressTint="@color/primary"
+                    android:thumbTint="@color/primary" />
+
+                <TextView
+                    android:id="@+id/volume_text"
+                    android:layout_width="36dp"
+                    android:layout_height="wrap_content"
+                    android:text="100%"
+                    android:textColor="@android:color/white"
+                    android:textSize="11sp"
+                    android:gravity="center" />
+            </LinearLayout>
+
+            <!-- Center Playback Controls -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <!-- Rewind Button -->
+                <ImageButton
+                    android:id="@id/exo_rew"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:scaleType="fitCenter"
+                    android:padding="8dp"
+                    android:contentDescription="Rewind"
+                    android:focusable="true" />
+
+                <!-- Play/Pause Button -->
+                <ImageButton
+                    android:id="@id/exo_play_pause"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="Play/Pause"
+                    android:focusable="true" />
+
+                <!-- Fast Forward Button -->
+                <ImageButton
+                    android:id="@id/exo_ffwd"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:scaleType="fitCenter"
+                    android:padding="8dp"
+                    android:contentDescription="Fast Forward"
+                    android:focusable="true" />
+
+            </LinearLayout>
+
+            <!-- Right side: empty space for balance -->
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+        </LinearLayout>
+
+        <!-- Netflix-style Bottom Row: Episodes, Audio & Subtitles, Info -->
+        <LinearLayout
+            android:id="@+id/series_options_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center"
-            android:orientation="horizontal">
+            android:paddingTop="12dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:visibility="gone">
 
-            <!-- Rewind Button -->
-            <ImageButton
-                android:id="@id/exo_rew"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:scaleType="fitCenter"
+            <!-- Settings/Info Button -->
+            <LinearLayout
+                android:id="@+id/btn_info_container"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center"
                 android:padding="8dp"
-                android:contentDescription="Rewind"
-                android:focusable="true" />
+                android:background="?android:attr/selectableItemBackground"
+                android:focusable="true">
 
-            <!-- Spacer -->
-            <View
-                android:layout_width="24dp"
-                android:layout_height="1dp" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_info"
+                    android:tint="@android:color/white" />
 
-            <!-- Play/Pause Button -->
-            <ImageButton
-                android:id="@id/exo_play_pause"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:scaleType="fitCenter"
-                android:contentDescription="Play/Pause"
-                android:focusable="true" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Info"
+                    android:textColor="@android:color/white"
+                    android:textSize="14sp" />
+            </LinearLayout>
 
-            <!-- Spacer -->
-            <View
-                android:layout_width="24dp"
-                android:layout_height="1dp" />
-
-            <!-- Fast Forward Button -->
-            <ImageButton
-                android:id="@id/exo_ffwd"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:scaleType="fitCenter"
+            <!-- Episodes Button (Only for Series) -->
+            <LinearLayout
+                android:id="@+id/btn_episodes_container"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center"
                 android:padding="8dp"
-                android:contentDescription="Fast Forward"
-                android:focusable="true" />
+                android:background="?android:attr/selectableItemBackground"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_agenda"
+                    android:tint="@android:color/white" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Épisodes"
+                    android:textColor="@android:color/white"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- Audio & Subtitles Button -->
+            <LinearLayout
+                android:id="@+id/btn_audio_subtitles_container"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:padding="8dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_sort_alphabetically"
+                    android:tint="@android:color/white" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Audio &amp; Sous-titres"
+                    android:textColor="@android:color/white"
+                    android:textSize="14sp" />
+            </LinearLayout>
 
         </LinearLayout>
 
