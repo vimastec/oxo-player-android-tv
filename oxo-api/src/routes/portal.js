@@ -201,10 +201,13 @@ router.post('/playlists', (req, res) => {
     return res.status(400).json({ error: 'Limite de 5 playlists atteinte' });
   }
 
-  // Insert playlist
+  // Deactivate all existing playlists for this device
+  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+
+  // Insert new playlist as active
   const result = db.prepare(`
-    INSERT INTO playlists (device_id, name, playlist_type, playlist_url, epg_url, is_protected, pin)
-    VALUES (?, ?, 'm3u', ?, ?, ?, ?)
+    INSERT INTO playlists (device_id, name, playlist_type, playlist_url, epg_url, is_protected, pin, is_active)
+    VALUES (?, ?, 'm3u', ?, ?, ?, ?, 1)
   `).run(device.id, name, playlist_url, epg_url || null, is_protected ? 1 : 0, is_protected ? pin : null);
 
   res.json({
@@ -255,10 +258,13 @@ router.post('/playlists/xtream', (req, res) => {
   cleanHost = cleanHost.replace(/^https?:\/\//, '');
   cleanHost = cleanHost.replace(/\/$/, '');
 
-  // Insert playlist
+  // Deactivate all existing playlists for this device
+  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+
+  // Insert new playlist as active
   const result = db.prepare(`
-    INSERT INTO playlists (device_id, name, playlist_type, xtream_host, xtream_username, xtream_password, epg_url, is_protected, pin)
-    VALUES (?, ?, 'xtream', ?, ?, ?, ?, ?, ?)
+    INSERT INTO playlists (device_id, name, playlist_type, xtream_host, xtream_username, xtream_password, epg_url, is_protected, pin, is_active)
+    VALUES (?, ?, 'xtream', ?, ?, ?, ?, ?, ?, 1)
   `).run(device.id, name, cleanHost, username, password, epg_url || null, is_protected ? 1 : 0, is_protected ? pin : null);
 
   res.json({

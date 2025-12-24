@@ -74,8 +74,20 @@ router.post('/register', (req, res) => {
     if (daysRemaining < 0) daysRemaining = 0;
   }
 
-  // Check if device has playlist configured (M3U or Xtream)
-  const hasPlaylist = !!(device.playlist_url || (device.xtream_host && device.xtream_username));
+  // Check if device has playlist configured (check new playlists table first, then device table)
+  const playlistCount = db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ? AND is_active = 1').get(device.id);
+  const hasPlaylistInTable = playlistCount && playlistCount.count > 0;
+  const hasPlaylistInDevice = !!(device.playlist_url || (device.xtream_host && device.xtream_username));
+  const hasPlaylist = hasPlaylistInTable || hasPlaylistInDevice;
+
+  // Get playlist type from playlists table if available
+  let playlistType = device.playlist_type || 'm3u';
+  if (hasPlaylistInTable) {
+    const firstPlaylist = db.prepare('SELECT playlist_type FROM playlists WHERE device_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1').get(device.id);
+    if (firstPlaylist) {
+      playlistType = firstPlaylist.playlist_type;
+    }
+  }
 
   res.json({
     mac_address: formattedMac,
@@ -86,7 +98,7 @@ router.post('/register', (req, res) => {
     expiration_date: device.expiration_date,
     days_remaining: daysRemaining,
     has_playlist: hasPlaylist,
-    playlist_type: device.playlist_type || 'm3u'
+    playlist_type: playlistType
   });
 });
 
@@ -132,11 +144,19 @@ router.get('/playlist/:mac', async (req, res) => {
     }
   }
 
-  // Check if playlist exists (M3U or Xtream)
+  // Check if playlist exists in new playlists table first
+  const playlist = db.prepare(`
+    SELECT * FROM playlists 
+    WHERE device_id = ? AND is_active = 1 
+    ORDER BY created_at DESC 
+    LIMIT 1
+  `).get(device.id);
+
+  // Fallback to old device table for backwards compatibility
   const hasM3U = !!device.playlist_url;
   const hasXtream = !!(device.xtream_host && device.xtream_username);
   
-  if (!hasM3U && !hasXtream) {
+  if (!playlist && !hasM3U && !hasXtream) {
     return res.status(404).json({
       error: 'Aucune playlist configurée',
       status: device.status,
@@ -149,11 +169,23 @@ router.get('/playlist/:mac', async (req, res) => {
     mac_address: formattedMac,
     status: device.status,
     expiration_date: device.expiration_date,
-    playlist_type: device.playlist_type || 'm3u'
+    playlist_type: playlist ? playlist.playlist_type : (device.playlist_type || 'm3u')
   };
 
-  // Add appropriate credentials based on type
-  if (device.playlist_type === 'xtream' && device.xtream_host) {
+  // Use new playlists table if available
+  if (playlist) {
+    if (playlist.playlist_type === 'xtream' && playlist.xtream_host) {
+      response.xtream = {
+        host: playlist.xtream_host,
+        username: playlist.xtream_username,
+        password: playlist.xtream_password
+      };
+    } else {
+      response.playlist_url = playlist.playlist_url;
+    }
+  }
+  // Fallback to old device table
+  else if (device.playlist_type === 'xtream' && device.xtream_host) {
     response.xtream = {
       host: device.xtream_host,
       username: device.xtream_username,
@@ -191,7 +223,19 @@ router.get('/playlist/:mac/content', async (req, res) => {
     return res.status(403).json({ error: 'Abonnement expiré' });
   }
 
-  if (!device.playlist_url) {
+  // Get active playlist from playlists table
+  const playlist = db.prepare(`
+    SELECT * FROM playlists 
+    WHERE device_id = ? AND is_active = 1 
+    ORDER BY created_at DESC 
+    LIMIT 1
+  `).get(device.id);
+
+  // Fallback to device table for backwards compatibility
+  const playlistUrl = playlist?.playlist_url || device.playlist_url;
+  const playlistContent = playlist?.playlist_content || device.playlist_content;
+
+  if (!playlistUrl && !playlistContent) {
     return res.status(404).json({ error: 'Aucune playlist configurée' });
   }
 
@@ -199,8 +243,8 @@ router.get('/playlist/:mac/content', async (req, res) => {
     let content = '';
 
     // Check if it's a local file (starts with /uploads/)
-    if (device.playlist_url.startsWith('/uploads/')) {
-      const filePath = path.join(__dirname, '../../', device.playlist_url);
+    if (playlistUrl && playlistUrl.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '../../', playlistUrl);
       console.log('Loading local file:', filePath);
       
       if (fs.existsSync(filePath)) {
@@ -210,14 +254,14 @@ router.get('/playlist/:mac/content', async (req, res) => {
       }
     }
     // Check if it's an external URL
-    else if (device.playlist_url.startsWith('http://') || device.playlist_url.startsWith('https://')) {
-      console.log('Fetching external URL:', device.playlist_url);
+    else if (playlistUrl && (playlistUrl.startsWith('http://') || playlistUrl.startsWith('https://'))) {
+      console.log('Fetching external URL:', playlistUrl);
       
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120000); // 120s timeout for large playlists
       
       try {
-        const response = await fetch(device.playlist_url, {
+        const response = await fetch(playlistUrl, {
           signal: controller.signal,
           headers: {
             'User-Agent': 'OXO Player/1.0'
@@ -242,8 +286,8 @@ router.get('/playlist/:mac/content', async (req, res) => {
       }
     }
     // Check if we have stored content
-    else if (device.playlist_content) {
-      content = device.playlist_content;
+    else if (playlistContent) {
+      content = playlistContent;
     }
     else {
       return res.status(404).json({ error: 'Playlist non trouvée' });
@@ -257,6 +301,149 @@ router.get('/playlist/:mac/content', async (req, res) => {
     console.error('Error loading playlist:', error);
     res.status(500).json({ error: 'Erreur lors du chargement de la playlist' });
   }
+});
+
+// Get all playlists for device (for playlist selector)
+router.get('/playlists/:mac', (req, res) => {
+  const { mac } = req.params;
+
+  // Normalize MAC
+  const normalizedMac = mac.toUpperCase().replace(/[^A-F0-9]/g, '');
+  if (normalizedMac.length !== 12) {
+    return res.status(400).json({ error: 'Format MAC invalide' });
+  }
+
+  const formattedMac = normalizedMac.match(/.{2}/g).join(':');
+
+  // Get device
+  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+
+  if (!device) {
+    return res.status(404).json({ error: 'Appareil non trouvé' });
+  }
+
+  // Get all playlists for this device
+  const playlists = db.prepare(`
+    SELECT id, name, playlist_type, playlist_url, xtream_host, xtream_username, xtream_password, is_active, created_at
+    FROM playlists 
+    WHERE device_id = ? 
+    ORDER BY created_at DESC
+  `).all(device.id);
+
+  res.json({
+    mac_address: formattedMac,
+    playlists: playlists.map(p => ({
+      id: p.id,
+      name: p.name,
+      playlist_type: p.playlist_type,
+      is_active: p.is_active === 1,
+      created_at: p.created_at
+    }))
+  });
+});
+
+// Get specific playlist by ID
+router.get('/playlist/:mac/:playlistId', (req, res) => {
+  const { mac, playlistId } = req.params;
+
+  // Normalize MAC
+  const normalizedMac = mac.toUpperCase().replace(/[^A-F0-9]/g, '');
+  if (normalizedMac.length !== 12) {
+    return res.status(400).json({ error: 'Format MAC invalide' });
+  }
+
+  const formattedMac = normalizedMac.match(/.{2}/g).join(':');
+
+  // Get device
+  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+
+  if (!device) {
+    return res.status(404).json({ error: 'Appareil non trouvé' });
+  }
+
+  // Check status
+  if (device.status === 'expired') {
+    return res.status(403).json({ 
+      error: 'Abonnement expiré',
+      status: 'expired'
+    });
+  }
+
+  // Get specific playlist
+  const playlist = db.prepare(`
+    SELECT * FROM playlists 
+    WHERE id = ? AND device_id = ?
+  `).get(playlistId, device.id);
+
+  if (!playlist) {
+    return res.status(404).json({ error: 'Playlist non trouvée' });
+  }
+
+  // Return playlist info
+  const response = {
+    id: playlist.id,
+    name: playlist.name,
+    mac_address: formattedMac,
+    status: device.status,
+    expiration_date: device.expiration_date,
+    playlist_type: playlist.playlist_type
+  };
+
+  if (playlist.playlist_type === 'xtream' && playlist.xtream_host) {
+    response.xtream = {
+      host: playlist.xtream_host,
+      username: playlist.xtream_username,
+      password: playlist.xtream_password
+    };
+  } else {
+    response.playlist_url = playlist.playlist_url;
+  }
+
+  res.json(response);
+});
+
+// Set active playlist for device
+router.post('/playlist/:mac/set-active/:playlistId', (req, res) => {
+  const { mac, playlistId } = req.params;
+
+  // Normalize MAC
+  const normalizedMac = mac.toUpperCase().replace(/[^A-F0-9]/g, '');
+  if (normalizedMac.length !== 12) {
+    return res.status(400).json({ error: 'Format MAC invalide' });
+  }
+
+  const formattedMac = normalizedMac.match(/.{2}/g).join(':');
+
+  // Get device
+  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+
+  if (!device) {
+    return res.status(404).json({ error: 'Appareil non trouvé' });
+  }
+
+  // Check if playlist belongs to this device
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?').get(playlistId, device.id);
+  
+  if (!playlist) {
+    return res.status(404).json({ error: 'Playlist non trouvée' });
+  }
+
+  // Deactivate all playlists for this device
+  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+
+  // Activate the selected playlist
+  db.prepare('UPDATE playlists SET is_active = 1 WHERE id = ?').run(playlistId);
+
+  console.log(`✅ Set playlist ${playlistId} as active for device ${formattedMac}`);
+
+  res.json({
+    success: true,
+    message: 'Playlist activée',
+    active_playlist: {
+      id: playlist.id,
+      name: playlist.name
+    }
+  });
 });
 
 // Check device status (quick check for app)
