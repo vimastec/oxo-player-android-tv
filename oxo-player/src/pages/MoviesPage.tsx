@@ -49,73 +49,6 @@ export function MoviesPage({ onBack }: MoviesPageProps) {
     setSelectedIndex(0);
   }, [selectedCategory, searchQuery]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (playingMovie) return;
-
-      const columnsPerRow = 6; // Approximation
-      const maxIndex = paginatedMovies.length - 1;
-
-      switch (e.key) {
-        case 'ArrowUp':
-          e.preventDefault();
-          setSelectedIndex(prev => Math.max(0, prev - columnsPerRow));
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          setSelectedIndex(prev => Math.min(maxIndex, prev + columnsPerRow));
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          if (selectedIndex === 0 && currentPage > 1) {
-            setCurrentPage(prev => prev - 1);
-            setSelectedIndex(ITEMS_PER_PAGE - 1);
-          } else {
-            setSelectedIndex(prev => Math.max(0, prev - 1));
-          }
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          if (selectedIndex === maxIndex && currentPage < totalPages) {
-            setCurrentPage(prev => prev + 1);
-            setSelectedIndex(0);
-          } else {
-            setSelectedIndex(prev => Math.min(maxIndex, prev + 1));
-          }
-          break;
-        case 'Enter':
-          e.preventDefault();
-          if (paginatedMovies[selectedIndex]) {
-            setPlayingMovie(paginatedMovies[selectedIndex]);
-          }
-          break;
-        case 'Escape':
-        case 'Backspace':
-          e.preventDefault();
-          if (onBack) onBack();
-          break;
-        case 'PageUp':
-          e.preventDefault();
-          if (currentPage > 1) {
-            setCurrentPage(prev => prev - 1);
-            setSelectedIndex(0);
-          }
-          break;
-        case 'PageDown':
-          e.preventDefault();
-          if (currentPage < totalPages) {
-            setCurrentPage(prev => prev + 1);
-            setSelectedIndex(0);
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [paginatedMovies, selectedIndex, currentPage, totalPages, playingMovie, onBack]);
-
   const handleMovieClick = useCallback((movie: VODInfo, index: number) => {
     if (selectedIndex === index) {
       setPlayingMovie(movie);
@@ -200,11 +133,15 @@ export function MoviesPage({ onBack }: MoviesPageProps) {
                 const isFav = isFavorite(movie.stream_id, 'movie');
 
                 return (
-                  <div
+                  <button
                     key={movie.stream_id}
+                    type="button"
                     onClick={() => handleMovieClick(movie, index)}
+                    onFocus={() => setSelectedIndex(index)}
+                    tabIndex={0}
+                    data-tv-auto-focus={index === 0 ? 'true' : undefined}
                     className={`group relative bg-oxo-card rounded-xl overflow-hidden 
-                      border cursor-pointer transition-all duration-200
+                      border cursor-pointer transition-all duration-200 text-left
                       ${isSelected 
                         ? 'border-blue-500 ring-2 ring-blue-500 scale-105 z-10' 
                         : 'border-oxo-border hover:border-oxo-primary'
@@ -249,6 +186,7 @@ export function MoviesPage({ onBack }: MoviesPageProps) {
                         <button
                           onClick={(e) => handleToggleFavorite(e, movie)}
                           className="p-1 rounded-lg hover:bg-oxo-border transition-colors flex-shrink-0"
+                          type="button"
                         >
                           {isFav ? (
                             <Star className="w-4 h-4 text-yellow-400" fill="currentColor" />
@@ -258,7 +196,7 @@ export function MoviesPage({ onBack }: MoviesPageProps) {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

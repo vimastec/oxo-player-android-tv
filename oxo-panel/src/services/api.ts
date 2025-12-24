@@ -88,7 +88,3 @@ export const resellerApi = {
 };
 
 export default api;
-
-
-
-

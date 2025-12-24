@@ -1,70 +1,173 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+/* CSS Compatible Samsung Tizen - Sans Tailwind moderne */
+/* Navigation spatiale pour TV Samsung (sans curseur) */
 
-@import "tailwindcss";
-
-@theme {
-  --color-oxo-dark: #0a0a0f;
-  --color-oxo-darker: #050508;
-  --color-oxo-card: #12121a;
-  --color-oxo-border: #1e1e2e;
-  --color-oxo-primary: #6366f1;
-  --color-oxo-secondary: #8b5cf6;
-  --color-oxo-accent: #f59e0b;
-  --color-oxo-success: #10b981;
-  --color-oxo-text: #e2e8f0;
-  --color-oxo-muted: #64748b;
-  
-  --font-family-display: 'Outfit', sans-serif;
-  --font-family-body: 'Inter', sans-serif;
-  
-  --animate-fade-in: fadeIn 0.3s ease-out;
-  --animate-slide-up: slideUp 0.4s ease-out;
-  --animate-slide-right: slideRight 0.3s ease-out;
-  --animate-pulse-glow: pulseGlow 2s ease-in-out infinite;
-  --animate-scale-in: scaleIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-@keyframes slideUp {
-  0% { opacity: 0; transform: translateY(20px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideRight {
-  0% { opacity: 0; transform: translateX(-20px); }
-  100% { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.6); }
-}
-
-@keyframes scaleIn {
-  0% { opacity: 0; transform: scale(0.95); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
+/* Reset de base */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--color-oxo-dark);
-  color: var(--color-oxo-text);
-  font-family: var(--font-family-body);
+  background-color: #0a0a0f;
+  color: #e2e8f0;
+  font-family: Arial, Helvetica, sans-serif;
+  cursor: none !important;
 }
 
-/* Hide scrollbars but allow scrolling */
+/* Navigation spatiale CSS (Samsung TV) */
+html {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Variables CSS simples */
+:root {
+  --bg-dark: #0a0a0f;
+  --bg-card: #12121a;
+  --bg-border: #1e1e2e;
+  --color-primary: #dc2626;
+  --color-text: #e2e8f0;
+  --color-muted: #64748b;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+}
+
+/* Utilitaires de base */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.text-center { text-align: center; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.h-screen { height: 100vh; }
+.min-h-screen { min-height: 100vh; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.z-10 { z-index: 10; }
+.z-50 { z-index: 50; }
+.overflow-hidden { overflow: hidden; }
+.overflow-y-auto { overflow-y: auto; }
+.cursor-pointer { cursor: pointer; }
+.font-bold { font-weight: bold; }
+.font-semibold { font-weight: 600; }
+
+/* Couleurs de texte */
+.text-white { color: #ffffff; }
+.text-gray-300 { color: #d1d5db; }
+.text-gray-400 { color: #9ca3af; }
+.text-gray-500 { color: #6b7280; }
+.text-gray-600 { color: #4b5563; }
+.text-red-500 { color: #ef4444; }
+.text-red-600 { color: #dc2626; }
+.text-green-500 { color: #10b981; }
+.text-yellow-500 { color: #f59e0b; }
+
+/* Backgrounds */
+.bg-dark { background-color: #0a0a0f; }
+.bg-card { background-color: #12121a; }
+.bg-gray-800 { background-color: #1f2937; }
+.bg-red-600 { background-color: #dc2626; }
+.bg-red-700 { background-color: #b91c1c; }
+
+/* Padding et margin */
+.p-2 { padding: 8px; }
+.p-3 { padding: 12px; }
+.p-4 { padding: 16px; }
+.p-6 { padding: 24px; }
+.p-8 { padding: 32px; }
+.px-4 { padding-left: 16px; padding-right: 16px; }
+.px-6 { padding-left: 24px; padding-right: 24px; }
+.px-8 { padding-left: 32px; padding-right: 32px; }
+.py-2 { padding-top: 8px; padding-bottom: 8px; }
+.py-3 { padding-top: 12px; padding-bottom: 12px; }
+.py-4 { padding-top: 16px; padding-bottom: 16px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 12px; }
+.mb-4 { margin-bottom: 16px; }
+.mb-6 { margin-bottom: 24px; }
+.mb-8 { margin-bottom: 32px; }
+.mt-4 { margin-top: 16px; }
+.mt-6 { margin-top: 24px; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.gap-6 { gap: 24px; }
+
+/* Tailles */
+.text-xs { font-size: 12px; }
+.text-sm { font-size: 14px; }
+.text-base { font-size: 16px; }
+.text-lg { font-size: 18px; }
+.text-xl { font-size: 20px; }
+.text-2xl { font-size: 24px; }
+.text-3xl { font-size: 30px; }
+.text-4xl { font-size: 36px; }
+.text-5xl { font-size: 48px; }
+.text-6xl { font-size: 60px; }
+
+/* Bordures et radius */
+.rounded { border-radius: 4px; }
+.rounded-lg { border-radius: 8px; }
+.rounded-xl { border-radius: 12px; }
+.rounded-2xl { border-radius: 16px; }
+.rounded-3xl { border-radius: 24px; }
+.rounded-full { border-radius: 9999px; }
+.border { border: 1px solid #1e1e2e; }
+.border-2 { border: 2px solid #1e1e2e; }
+
+/* Shadows */
+.shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); }
+.shadow-xl { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4); }
+.shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+
+/* Animation spinner */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Focus TV - IMPORTANT pour télécommande Samsung */
+button, a, [tabindex]:not([tabindex="-1"]), [role="button"] {
+  outline: none !important;
+  transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s, border 0.2s;
+}
+
+button:focus, a:focus, [tabindex]:focus, [role="button"]:focus {
+  outline: 5px solid #dc2626 !important;
+  outline-offset: 5px !important;
+  transform: scale(1.08) !important;
+  box-shadow: 0 0 30px rgba(220, 38, 38, 0.8) !important;
+  z-index: 100 !important;
+  position: relative !important;
+}
+
+.tv-focus {
+  outline: none;
+  transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+.tv-focus:focus,
+.tv-focus.focused {
+  outline: 5px solid #dc2626 !important;
+  outline-offset: 5px !important;
+  transform: scale(1.08) !important;
+  box-shadow: 0 0 30px rgba(220, 38, 38, 0.8) !important;
+}
+
+/* Hide scrollbar */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -73,154 +176,137 @@ html, body, #root {
   display: none;
 }
 
-/* Focus styles for TV navigation */
-.tv-focusable {
-  transition: all 0.2s;
-  outline: none;
-}
-
-.tv-focusable:focus {
-  outline: 2px solid var(--color-oxo-primary);
-  outline-offset: 2px;
-  transform: scale(1.05);
-}
-
-/* Card hover effects */
-.card-hover {
-  transition: all 0.3s ease-out;
-}
-
-.card-hover:hover,
-.card-hover:focus {
-  transform: scale(1.05);
-  box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.2);
-}
-
-/* Gradient overlays */
-.gradient-overlay {
-  background: linear-gradient(
-    to top,
-    rgba(10, 10, 15, 1) 0%,
-    rgba(10, 10, 15, 0.8) 30%,
-    rgba(10, 10, 15, 0) 100%
-  );
-}
-
-/* Video player controls */
-.player-controls {
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.9) 0%,
-    rgba(0, 0, 0, 0.5) 50%,
-    transparent 100%
-  );
-}
-
-/* Progress bar */
-.progress-bar {
-  height: 4px;
-  background-color: var(--color-oxo-border);
-  border-radius: 9999px;
-  overflow: hidden;
+/* Bouton style */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  background-color: #dc2626;
+  color: white;
+  font-weight: 600;
+  border-radius: 12px;
+  border: none;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+.btn:hover,
+.btn:focus {
+  background-color: #b91c1c;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.progress-bar:hover {
-  height: 8px;
+/* Card style */
+.card {
+  background-color: #12121a;
+  border: 1px solid #1e1e2e;
+  border-radius: 16px;
+  padding: 24px;
 }
 
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(to right, var(--color-oxo-primary), var(--color-oxo-secondary));
-  border-radius: 9999px;
-  transition: all 0.1s;
+/* Menu item pour Home */
+.menu-item {
+  cursor: pointer;
+  transition: transform 0.2s;
 }
-
-/* Category pills */
-.category-pill {
-  padding: 8px 16px;
-  border-radius: 9999px;
-  background-color: var(--color-oxo-card);
-  border: 1px solid var(--color-oxo-border);
+.menu-item:focus,
+.menu-item.selected {
+  transform: scale(1.1);
+}
+.menu-item .icon-box {
+  width: 120px;
+  height: 120px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+.menu-item .icon-box.inactive {
+  background: linear-gradient(135deg, #374151, #1f2937);
+}
+.menu-item .icon-box.active {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+}
+.menu-item .label {
+  text-align: center;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-weight: 600;
   font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-  cursor: pointer;
-  white-space: nowrap;
+  transition: background-color 0.2s, color 0.2s;
 }
-
-.category-pill:hover,
-.category-pill:focus,
-.category-pill.active {
-  background-color: var(--color-oxo-primary);
-  border-color: var(--color-oxo-primary);
+.menu-item .label.inactive {
+  background-color: rgba(31, 41, 55, 0.8);
+  color: #9ca3af;
+}
+.menu-item .label.active {
+  background: linear-gradient(90deg, #dc2626, #b91c1c);
   color: white;
 }
 
-/* Splash screen animation */
-@keyframes splash-fade {
-  0% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { opacity: 0; visibility: hidden; }
+/* Liste des chaînes */
+.channel-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-bottom: 1px solid #1e1e2e;
+}
+.channel-item:hover,
+.channel-item:focus,
+.channel-item.selected {
+  background-color: #dc2626;
+  color: white;
+}
+.channel-item .channel-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background-color: #1f2937;
+  margin-right: 12px;
+  object-fit: contain;
+}
+.channel-item .channel-name {
+  flex: 1;
+  font-size: 16px;
 }
 
-.splash-screen {
-  animation: splash-fade 2s ease-out forwards;
+/* Catégories */
+.category-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #1e1e2e;
+  transition: background-color 0.2s;
+}
+.category-item:hover,
+.category-item:focus,
+.category-item.selected {
+  background-color: #dc2626;
+  color: white;
 }
 
-/* Loading spinner */
-.spinner {
-  border: 3px solid rgba(99, 102, 241, 0.2);
-  border-top-color: #6366f1;
+/* Loading */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background-color: #0a0a0f;
+}
+.loading-spinner {
+  width: 64px;
+  height: 64px;
+  border: 4px solid #1e1e2e;
+  border-top-color: #dc2626;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
 }
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Prevent text selection on TV */
-.no-select {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-/* Utility classes using CSS variables */
-.bg-oxo-dark { background-color: var(--color-oxo-dark); }
-.bg-oxo-darker { background-color: var(--color-oxo-darker); }
-.bg-oxo-card { background-color: var(--color-oxo-card); }
-.bg-oxo-border { background-color: var(--color-oxo-border); }
-.bg-oxo-primary { background-color: var(--color-oxo-primary); }
-.bg-oxo-secondary { background-color: var(--color-oxo-secondary); }
-
-.text-oxo-text { color: var(--color-oxo-text); }
-.text-oxo-muted { color: var(--color-oxo-muted); }
-.text-oxo-primary { color: var(--color-oxo-primary); }
-
-.border-oxo-border { border-color: var(--color-oxo-border); }
-.border-oxo-primary { border-color: var(--color-oxo-primary); }
-
-.ring-oxo-primary { --tw-ring-color: var(--color-oxo-primary); }
-
-.shadow-oxo-primary\/20 { box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.2); }
-.shadow-oxo-primary\/30 { box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3); }
-
-.font-display { font-family: var(--font-family-display); }
-
-.animate-fade-in { animation: var(--animate-fade-in); }
-.animate-slide-up { animation: var(--animate-slide-up); }
-.animate-slide-right { animation: var(--animate-slide-right); }
-.animate-pulse-glow { animation: var(--animate-pulse-glow); }
-.animate-scale-in { animation: var(--animate-scale-in); }
-
-.hover\:bg-oxo-card:hover { background-color: var(--color-oxo-card); }
-.hover\:bg-oxo-border:hover { background-color: var(--color-oxo-border); }
-.hover\:bg-oxo-primary:hover { background-color: var(--color-oxo-primary); }
-.hover\:bg-oxo-primary\/80:hover { background-color: rgba(99, 102, 241, 0.8); }
-.hover\:border-oxo-primary:hover { border-color: var(--color-oxo-primary); }
-.hover\:text-white:hover { color: white; }
-
-.focus\:border-oxo-primary:focus { border-color: var(--color-oxo-primary); }

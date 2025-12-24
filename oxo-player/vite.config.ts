@@ -1,14 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    legacy({
+      targets: ['defaults', 'ie >= 11', 'samsung 4', 'android 4'],
+      additionalLegacyPolyfills: ['regenerator-runtime/runtime'],
+    }),
+  ],
   server: {
     host: true,
     port: 5173,
   },
   build: {
+    target: 'es5',
     outDir: 'dist',
     sourcemap: false,
     minify: 'terser',

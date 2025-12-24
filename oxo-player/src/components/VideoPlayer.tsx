@@ -202,44 +202,6 @@ export function VideoPlayer({
     };
   }, [isPlaying, isPaused]);
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const video = videoRef.current;
-      if (!video) return;
-
-      switch (e.key) {
-        case ' ':
-        case 'k':
-          e.preventDefault();
-          togglePlay();
-          break;
-        case 'm':
-          e.preventDefault();
-          toggleMute();
-          break;
-        case 'f':
-          e.preventDefault();
-          toggleFullscreen();
-          break;
-        case 'Escape':
-          if (isFullscreen) {
-            toggleFullscreen();
-          } else {
-            onClose?.();
-          }
-          break;
-        case 'Backspace':
-          e.preventDefault();
-          onClose?.();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, onClose]);
-
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;

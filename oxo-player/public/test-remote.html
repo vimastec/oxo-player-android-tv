@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Télécommande Samsung</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            font-size: 24px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 36px;
+            color: #dc2626;
+        }
+        .instructions {
+            background-color: #1a1a1a;
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 40px;
+            border: 2px solid #333;
+        }
+        .instructions p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        .key-display {
+            background-color: #dc2626;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            margin-bottom: 30px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .key-label {
+            font-size: 20px;
+            color: #ffcccc;
+            margin-bottom: 15px;
+        }
+        .key-value {
+            font-size: 60px;
+            font-weight: bold;
+            font-family: monospace;
+            color: #fff;
+            margin: 10px 0;
+        }
+        .key-info {
+            font-size: 18px;
+            color: #ffdddd;
+            margin-top: 10px;
+        }
+        .history {
+            background-color: #1a1a1a;
+            padding: 30px;
+            border-radius: 16px;
+            border: 2px solid #333;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .history h3 {
+            margin-bottom: 20px;
+            color: #dc2626;
+        }
+        .history-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            border-left: 4px solid #dc2626;
+        }
+        .clear-btn {
+            display: block;
+            width: 100%;
+            padding: 20px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 20px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .clear-btn:hover {
+            background-color: #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Test Télécommande Samsung</h1>
+    
+    <div class="instructions">
+        <p><strong>Instructions :</strong></p>
+        <p>1. Appuie sur les touches de ta télécommande Samsung</p>
+        <p>2. Les codes vont s'afficher ci-dessous</p>
+        <p>3. Note les codes pour : ⬆️ ⬇️ ⬅️ ➡️ et OK</p>
+        <p>4. Envoie-moi une capture d'écran</p>
+    </div>
+
+    <div class="key-display" id="keyDisplay">
+        <div class="key-label">Appuie sur une touche...</div>
+    </div>
+
+    <div class="history">
+        <h3>📋 Historique des touches :</h3>
+        <div id="historyList"></div>
+        <button class="clear-btn" onclick="clearHistory()">Effacer l'historique</button>
+    </div>
+
+    <script>
+        const keyDisplay = document.getElementById('keyDisplay');
+        const historyList = document.getElementById('historyList');
+        let keyHistory = [];
+
+        // Enregistrer les touches Tizen si disponible
+        try {
+            if (typeof tizen !== 'undefined' && tizen.tvinputdevice) {
+                console.log('Tizen API disponible');
+                const keys = [
+                    'MediaPlay', 'MediaPause', 'MediaStop', 'MediaRewind', 'MediaFastForward',
+                    'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue'
+                ];
+                keys.forEach(key => {
+                    try {
+                        tizen.tvinputdevice.registerKey(key);
+                    } catch (e) {
+                        console.log('Cannot register key:', key);
+                    }
+                });
+            }
+        } catch (e) {
+            console.log('Not running on Tizen');
+        }
+
+        document.addEventListener('keydown', function(e) {
+            e.preventDefault();
+            
+            const keyInfo = {
+                key: e.key || 'undefined',
+                keyCode: e.keyCode || e.which || 'undefined',
+                which: e.which || 'undefined',
+                code: e.code || 'undefined',
+                timestamp: new Date().toLocaleTimeString()
+            };
+
+            // Affichage principal
+            keyDisplay.innerHTML = `
+                <div class="key-label">Touche détectée :</div>
+                <div class="key-value">${keyInfo.keyCode}</div>
+                <div class="key-info">
+                    key: "${keyInfo.key}" <br>
+                    code: "${keyInfo.code}" <br>
+                    which: ${keyInfo.which}
+                </div>
+            `;
+
+            // Ajouter à l'historique
+            keyHistory.unshift(keyInfo);
+            if (keyHistory.length > 10) keyHistory.pop();
+            
+            updateHistory();
+        });
+
+        function updateHistory() {
+            historyList.innerHTML = keyHistory.map(info => `
+                <div class="history-item">
+                    <strong>keyCode: ${info.keyCode}</strong> | 
+                    key: "${info.key}" | 
+                    code: "${info.code}" | 
+                    ${info.timestamp}
+                </div>
+            `).join('');
+        }
+
+        function clearHistory() {
+            keyHistory = [];
+            historyList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Historique vide</div>';
+        }
+
+        // Message initial
+        console.log('Page de test prête. Appuyez sur les touches de votre télécommande.');
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+

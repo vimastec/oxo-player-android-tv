@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { VideoPlayer } from '../components/VideoPlayer';
-import { VideoPreview } from '../components/VideoPreview';
 import { Search, Star, Clock, ChevronRight, ArrowLeft } from 'lucide-react';
 import xtreamApi from '../services/xtreamApi';
 import type { LiveChannel } from '../types';
@@ -26,7 +25,10 @@ interface CategoryRowProps {
 function CategoryRowComponent({ index, cat, isSelected, isFocused, onClick }: CategoryRowProps) {
   return (
     <div
+      tabIndex={index + 1}
+      role="button"
       onClick={onClick}
+      onFocus={() => console.log('Category focused:', index)}
       className={`flex items-center justify-between px-4 py-2 cursor-pointer transition-colors ${
         isSelected
           ? 'bg-blue-600 text-white'
@@ -63,7 +65,10 @@ interface ChannelRowProps {
 function ChannelRowComponent({ index, channel, isSelected, isFocused, onClick }: ChannelRowProps) {
   return (
     <div
+      tabIndex={1000 + index}
+      role="button"
       onClick={onClick}
+      onFocus={() => console.log('Channel focused:', index)}
       className={`flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors ${
         isSelected
           ? 'bg-blue-600 text-white'
@@ -108,6 +113,8 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20; // Seulement 20 chaînes affichées à la fois
   
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -140,7 +147,9 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
       count: counts[cat.category_id] || 0,
     }));
 
-    return [...specialCategories, ...regularCategories];
+    // Limiter à 20 catégories pour ne pas surcharger l'interface
+    const limitedRegular = regularCategories.slice(0, 17); // 3 spéciales + 17 = 20 total
+    return [...specialCategories, ...limitedRegular];
   }, [liveCategories, liveChannels, favorites]);
 
   // Filtered channels based on selected category
@@ -163,6 +172,14 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
 
     return channels;
   }, [liveChannels, selectedCategoryId, searchQuery, favorites]);
+
+  // Pagination - Seulement 20 chaînes à la fois !
+  const paginatedChannels = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredChannels.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredChannels, currentPage]);
+
+  const totalPages = Math.ceil(filteredChannels.length / ITEMS_PER_PAGE);
 
   // Scroll to selected items
   useEffect(() => {
@@ -188,82 +205,23 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
 
   // Reset channel index when category changes
   useEffect(() => {
+    setCurrentPage(1);
     setSelectedChannelIndex(0);
-    if (filteredChannels.length > 0) {
-      setSelectedChannel(filteredChannels[0]);
+    if (paginatedChannels.length > 0) {
+      setSelectedChannel(paginatedChannels[0]);
     } else {
       setSelectedChannel(null);
     }
   }, [selectedCategoryId]);
 
-  // Keyboard navigation
+  // Update selected channel from paginated list
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (showSearch) {
-        if (e.key === 'Escape') setShowSearch(false);
-        return;
-      }
+    if (paginatedChannels.length > 0 && selectedChannelIndex >= 0 && selectedChannelIndex < paginatedChannels.length) {
+      setSelectedChannel(paginatedChannels[selectedChannelIndex]);
+    }
+  }, [selectedChannelIndex, paginatedChannels]);
 
-      if (isFullscreen) {
-        if (e.key === 'Escape' || e.key === 'Backspace') {
-          e.preventDefault();
-          setIsFullscreen(false);
-        }
-        return;
-      }
-
-      switch (e.key) {
-        case 'ArrowUp':
-          e.preventDefault();
-          if (focusColumn === 'categories') {
-            setSelectedCategoryIndex(prev => Math.max(0, prev - 1));
-          } else if (focusColumn === 'channels') {
-            setSelectedChannelIndex(prev => Math.max(0, prev - 1));
-          }
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          if (focusColumn === 'categories') {
-            setSelectedCategoryIndex(prev => Math.min(categoriesWithCounts.length - 1, prev + 1));
-          } else if (focusColumn === 'channels') {
-            setSelectedChannelIndex(prev => Math.min(filteredChannels.length - 1, prev + 1));
-          }
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          if (focusColumn === 'channels') setFocusColumn('categories');
-          else if (focusColumn === 'preview') setFocusColumn('channels');
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          if (focusColumn === 'categories') setFocusColumn('channels');
-          else if (focusColumn === 'channels') setFocusColumn('preview');
-          break;
-        case 'Enter':
-          e.preventDefault();
-          if (focusColumn === 'categories') {
-            const cat = categoriesWithCounts[selectedCategoryIndex];
-            if (cat) {
-              setSelectedCategoryId(cat.id);
-              setFocusColumn('channels');
-            }
-          } else if (focusColumn === 'channels' || focusColumn === 'preview') {
-            if (selectedChannel) setIsFullscreen(true);
-          }
-          break;
-        case 'Escape':
-        case 'Backspace':
-          e.preventDefault();
-          if (focusColumn === 'preview') setFocusColumn('channels');
-          else if (focusColumn === 'channels') setFocusColumn('categories');
-          else if (onBack) onBack();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusColumn, selectedCategoryIndex, selectedChannelIndex, categoriesWithCounts, filteredChannels, selectedChannel, isFullscreen, showSearch, onBack]);
+  // Laisser Samsung gérer la navigation via tabindex
 
   const getStreamUrl = useCallback((channel: LiveChannel): string => {
     let streamUrl = '';
@@ -274,7 +232,8 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
       streamUrl = xtreamApi.getLiveStreamUrl(channel.stream_id);
     }
     if (streamUrl && (streamUrl.includes('http://') || streamUrl.includes('https://'))) {
-      return `http://localhost:3000/api/stream/proxy?url=${encodeURIComponent(streamUrl)}`;
+      // Utiliser le proxy Railway pour éviter les problèmes CORS
+      return `https://oxo-api-production.up.railway.app/api/stream/proxy?url=${encodeURIComponent(streamUrl)}`;
     }
     return streamUrl;
   }, [credentials]);
@@ -334,7 +293,7 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
           </button>
         )}
         <span className="flex-1 text-center text-sm text-blue-400 font-medium">
-          En direct ({filteredChannels.length} chaînes)
+          En direct ({filteredChannels.length} chaînes) - Page {currentPage}/{totalPages}
         </span>
         {onBack && <div className="w-20" />}
       </div>
@@ -357,14 +316,15 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
           ))}
         </div>
 
-        {/* Channels */}
+        {/* Channels - PAGINÉES (20 à la fois) */}
         <div ref={channelListRef} className={`w-[420px] flex-shrink-0 border-r border-[#1a3a5c] overflow-y-auto scrollbar-hide ${
           focusColumn === 'channels' ? 'ring-2 ring-blue-500 ring-inset' : ''
         }`}>
-          {filteredChannels.length === 0 ? (
+          {paginatedChannels.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-500">Aucune chaîne</div>
           ) : (
-            filteredChannels.map((channel, index) => (
+            <>
+              {paginatedChannels.map((channel, index) => (
               <ChannelRowComponent
                 key={channel.stream_id}
                 index={index}
@@ -373,21 +333,67 @@ export function LiveTVPage({ onBack }: LiveTVPageProps) {
                 isFocused={focusColumn === 'channels' && selectedChannelIndex === index}
                 onClick={() => handleChannelClick(channel, index)}
               />
-            ))
+              ))}
+              
+              {/* Boutons pagination */}
+              {totalPages > 1 && (
+                <div style={{ padding: '16px', display: 'flex', gap: '8px', borderTop: '1px solid #1a3a5c' }}>
+                  <button
+                    tabIndex={2000}
+                    onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); setSelectedChannelIndex(0); }}
+                    disabled={currentPage === 1}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      backgroundColor: currentPage === 1 ? '#333' : '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      opacity: currentPage === 1 ? 0.5 : 1,
+                    }}
+                  >
+                    ← Page {currentPage > 1 ? currentPage - 1 : 1}
+                  </button>
+                  <button
+                    tabIndex={2001}
+                    onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); setSelectedChannelIndex(0); }}
+                    disabled={currentPage === totalPages}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      backgroundColor: currentPage === totalPages ? '#333' : '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                      opacity: currentPage === totalPages ? 0.5 : 1,
+                    }}
+                  >
+                    Page {currentPage < totalPages ? currentPage + 1 : totalPages} →
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Preview */}
+        {/* Preview - DÉSACTIVÉ pour performance TV */}
         <div className={`flex-1 flex flex-col bg-[#0d1e36] ${focusColumn === 'preview' ? 'ring-2 ring-blue-500 ring-inset' : ''}`}>
           {selectedChannel ? (
             <>
-              <div className="flex-1 relative bg-black">
-                <VideoPreview
-                  key={selectedChannel.stream_id}
-                  src={getStreamUrl(selectedChannel)}
-                  poster={selectedChannel.stream_icon}
-                  onDoubleClick={() => setIsFullscreen(true)}
-                />
+              <div className="flex-1 relative bg-black flex items-center justify-center">
+                {selectedChannel.stream_icon ? (
+                  <img 
+                    src={selectedChannel.stream_icon} 
+                    alt={selectedChannel.name}
+                    style={{ maxWidth: '400px', maxHeight: '400px', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div style={{ fontSize: '100px' }}>📺</div>
+                )}
               </div>
               <div className="flex-shrink-0 p-4 border-t border-[#1a3a5c]">
                 <h2 className="text-lg font-medium text-white truncate">{selectedChannel.name}</h2>

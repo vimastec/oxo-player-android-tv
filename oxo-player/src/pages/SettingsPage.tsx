@@ -6,9 +6,12 @@ import {
   Trash2, 
   Download,
   Info,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCw
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
+import { generateDeviceMac, getPlaylistContent } from '../services/deviceApi';
+import { parseM3U } from '../services/m3uParser';
 
 interface SettingsPageProps {
   onBack?: () => void;
@@ -21,10 +24,82 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     credentials,
     playbackProgress,
     favorites,
+    liveChannels,
+    movies,
+    series,
+    setLiveChannels,
+    setLiveCategories,
+    setMovies,
+    setVodCategories,
+    setSeries,
+    setSeriesCategories,
     disconnect 
   } = useAppStore();
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
+  const [reloadProgress, setReloadProgress] = useState(0);
+  const [reloadError, setReloadError] = useState<string | null>(null);
+  const [reloadSuccess, setReloadSuccess] = useState(false);
+
+  const reloadPlaylist = async () => {
+    setIsReloading(true);
+    setReloadProgress(0);
+    setReloadError(null);
+    setReloadSuccess(false);
+
+    try {
+      const mac = generateDeviceMac();
+      setReloadProgress(10);
+      
+      console.log('Fetching playlist for MAC:', mac);
+      const playlistContent = await getPlaylistContent(mac);
+      setReloadProgress(30);
+      
+      console.log('Playlist size:', playlistContent.length, 'bytes');
+      
+      if (!playlistContent || playlistContent.length < 100) {
+        setReloadError('La playlist est vide ou invalide');
+        return;
+      }
+
+      console.log('Parsing playlist...');
+      const result = await parseM3U(playlistContent, (progress) => {
+        setReloadProgress(30 + Math.round(progress.percent * 0.6));
+      });
+      
+      setReloadProgress(95);
+      
+      console.log('Parse result:', {
+        channels: result.channels.length,
+        movies: result.movies.length,
+        series: result.series.length,
+        liveCategories: result.categories.live.length,
+        vodCategories: result.categories.vod.length,
+        seriesCategories: result.categories.series.length,
+      });
+
+      // Enregistrer toutes les données
+      setLiveChannels(result.channels);
+      setLiveCategories(result.categories.live);
+      setMovies(result.movies);
+      setVodCategories(result.categories.vod);
+      setSeries(result.series);
+      setSeriesCategories(result.categories.series);
+      
+      setReloadProgress(100);
+      setReloadSuccess(true);
+      
+      // Reset success message after 3s
+      setTimeout(() => setReloadSuccess(false), 3000);
+    } catch (err: unknown) {
+      console.error('Reload error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
+      setReloadError(`Erreur: ${errorMessage}`);
+    } finally {
+      setIsReloading(false);
+    }
+  };
 
   const clearAllData = () => {
     localStorage.clear();
@@ -141,6 +216,69 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
               </div>
             </section>
           )}
+
+          {/* Playlist info & reload */}
+          <section className="bg-oxo-card border border-oxo-border rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <RefreshCw className="w-5 h-5 text-oxo-primary" />
+              <h2 className="font-semibold text-lg">Playlist</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="p-4 bg-oxo-darker rounded-xl">
+                <p className="text-sm text-oxo-muted mb-1">Chaînes TV</p>
+                <p className="font-medium text-xl">{liveChannels.length}</p>
+              </div>
+              <div className="p-4 bg-oxo-darker rounded-xl">
+                <p className="text-sm text-oxo-muted mb-1">Films</p>
+                <p className="font-medium text-xl">{movies.length}</p>
+              </div>
+              <div className="p-4 bg-oxo-darker rounded-xl">
+                <p className="text-sm text-oxo-muted mb-1">Séries</p>
+                <p className="font-medium text-xl">{series.length}</p>
+              </div>
+            </div>
+            
+            {/* Progress bar */}
+            {isReloading && (
+              <div className="mb-4">
+                <div className="h-2 bg-oxo-darker rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-oxo-primary transition-all duration-300"
+                    style={{ width: `${reloadProgress}%` }}
+                  />
+                </div>
+                <p className="text-sm text-oxo-muted text-center mt-2">
+                  Chargement... {reloadProgress}%
+                </p>
+              </div>
+            )}
+            
+            {/* Error message */}
+            {reloadError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                <p className="text-sm text-red-400">{reloadError}</p>
+              </div>
+            )}
+            
+            {/* Success message */}
+            {reloadSuccess && (
+              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
+                <p className="text-sm text-green-400">
+                  ✓ Playlist rechargée ! {liveChannels.length} chaînes, {movies.length} films, {series.length} séries
+                </p>
+              </div>
+            )}
+            
+            <button
+              onClick={reloadPlaylist}
+              disabled={isReloading}
+              className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-oxo-primary text-white 
+                rounded-xl hover:bg-oxo-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-5 h-5 ${isReloading ? 'animate-spin' : ''}`} />
+              {isReloading ? 'Chargement en cours...' : 'Recharger la playlist'}
+            </button>
+          </section>
 
           {/* Storage info */}
           <section className="bg-oxo-card border border-oxo-border rounded-2xl p-6">

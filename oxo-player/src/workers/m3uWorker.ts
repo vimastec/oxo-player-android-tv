@@ -203,3 +203,16 @@ self.onmessage = (event: MessageEvent) => {
 // Export pour TypeScript (sera ignoré dans le worker)
 export {};
 
+
+
+
+
+
+
+
+
+
+
+
+
+

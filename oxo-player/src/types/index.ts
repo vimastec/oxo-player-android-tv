@@ -186,6 +186,26 @@ export interface PlayerState {
 
 export type AppSection = 'live' | 'movies' | 'series' | 'epg' | 'favorites' | 'settings';
 
+// Episodes parsés depuis une playlist M3U (stockés localement)
+export interface M3UEpisode {
+  id: string;
+  seriesId: number;
+  seriesName: string;
+  episodeNum: number;
+  seasonNum: number;
+  title: string;
+  url: string;
+  logo: string;
+  container_extension: string;
+}
+
+// Map des épisodes par série ID
+export interface SeriesEpisodesMap {
+  [seriesId: number]: {
+    [seasonNum: string]: M3UEpisode[];
+  };
+}
+
 export interface AppState {
   isConnected: boolean;
   isLoading: boolean;
@@ -194,6 +214,10 @@ export interface AppState {
   userInfo: UserInfo | null;
   serverInfo: ServerInfo | null;
 }
+
+
+
+
 
 
 

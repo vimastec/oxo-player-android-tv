@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.OXOPlayer" parent="Theme.AppCompat">
+        <item name="android:colorPrimary">@color/primary</item>
+        <item name="android:colorPrimaryDark">@color/black</item>
+        <item name="android:colorAccent">@color/secondary</item>
+        <item name="android:windowBackground">@color/black</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+    
+    <!-- Leanback theme for TV browsing -->
+    <style name="Theme.OXOPlayer.Leanback" parent="Theme.Leanback">
+        <item name="android:colorPrimary">@color/primary</item>
+        <item name="android:colorAccent">@color/secondary</item>
+        <item name="android:windowBackground">@color/black</item>
+    </style>
+    
+    <!-- Player theme (fullscreen, no action bar) -->
+    <style name="Theme.OXOPlayer.Player" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowBackground">@color/black</item>
+    </style>
+    
+    <!-- Dialog theme -->
+    <style name="Theme.OXOPlayer.Dialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:background">@color/sidebar_background</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textColorPrimary">@android:color/white</item>
+        <item name="android:textColorSecondary">@color/light_gray</item>
+        <item name="colorAccent">@color/primary</item>
+        <item name="android:windowTitleStyle">@style/DialogTitleStyle</item>
+    </style>
+    
+    <style name="DialogTitleStyle" parent="TextAppearance.AppCompat.Title">
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textSize">20sp</item>
+    </style>
+</resources>
+

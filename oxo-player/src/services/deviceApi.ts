@@ -1,4 +1,5 @@
-const API_URL = 'http://localhost:3000/api';
+// URL de l'API - Railway en production, localhost en dev
+const API_URL = import.meta.env.VITE_API_URL || 'https://oxo-api-production.up.railway.app/api';
 
 // Generate a pseudo-MAC address based on browser fingerprint
 export function generateDeviceMac(): string {

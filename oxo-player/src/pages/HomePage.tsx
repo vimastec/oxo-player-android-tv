@@ -1,140 +1,261 @@
 import { useEffect, useState } from 'react';
-import { Tv, Film, PlaySquare, RotateCcw, ListVideo, Settings } from 'lucide-react';
 
 interface HomePageProps {
   onNavigate: (section: 'live' | 'movies' | 'series' | 'catchup' | 'playlist' | 'settings') => void;
   expirationDate?: string;
 }
 
-export function HomePage({ onNavigate, expirationDate }: HomePageProps) {
-  const [currentDate, setCurrentDate] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+// Icônes SVG simples (pas de lucide-react pour compatibilité)
+const TvIcon = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
+    <polyline points="17 2 12 7 7 2"/>
+  </svg>
+);
 
-  const menuItems = [
-    { id: 'live', label: 'EN DIRECT', icon: Tv, color: 'from-red-600 to-red-700' },
-    { id: 'movies', label: 'FILMS', icon: Film, color: 'from-red-600 to-red-700' },
-    { id: 'series', label: 'SÉRIES', icon: PlaySquare, color: 'from-red-600 to-red-700' },
-    { id: 'catchup', label: 'REDIFFUSION', icon: RotateCcw, color: 'from-red-600 to-red-700' },
-    { id: 'playlist', label: 'PLAYLIST', icon: ListVideo, color: 'from-red-600 to-red-700' },
-    { id: 'settings', label: 'PARAMÈTRES', icon: Settings, color: 'from-red-600 to-red-700' },
-  ];
+const FilmIcon = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+    <line x1="7" y1="2" x2="7" y2="22"/>
+    <line x1="17" y1="2" x2="17" y2="22"/>
+    <line x1="2" y1="12" x2="22" y2="12"/>
+    <line x1="2" y1="7" x2="7" y2="7"/>
+    <line x1="2" y1="17" x2="7" y2="17"/>
+    <line x1="17" y1="17" x2="22" y2="17"/>
+    <line x1="17" y1="7" x2="22" y2="7"/>
+  </svg>
+);
+
+const PlayIcon = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="2" y="2" width="20" height="20" rx="2" ry="2"/>
+    <polygon points="10 8 16 12 10 16 10 8"/>
+  </svg>
+);
+
+const RotateIcon = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <polyline points="1 4 1 10 7 10"/>
+    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+  </svg>
+);
+
+const ListIcon = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <line x1="8" y1="6" x2="21" y2="6"/>
+    <line x1="8" y1="12" x2="21" y2="12"/>
+    <line x1="8" y1="18" x2="21" y2="18"/>
+    <line x1="3" y1="6" x2="3.01" y2="6"/>
+    <line x1="3" y1="12" x2="3.01" y2="12"/>
+    <line x1="3" y1="18" x2="3.01" y2="18"/>
+  </svg>
+);
+
+const SettingsIcon = () => (
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+);
+
+const menuItems = [
+  { id: 'live', label: 'EN DIRECT', Icon: TvIcon },
+  { id: 'movies', label: 'FILMS', Icon: FilmIcon },
+  { id: 'series', label: 'SÉRIES', Icon: PlayIcon },
+  { id: 'catchup', label: 'REDIFFUSION', Icon: RotateIcon },
+  { id: 'playlist', label: 'PLAYLIST', Icon: ListIcon },
+  { id: 'settings', label: 'PARAMÈTRES', Icon: SettingsIcon },
+];
+
+export function HomePage({ onNavigate, expirationDate }: HomePageProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [currentDate, setCurrentDate] = useState('');
 
   useEffect(() => {
-    // Format expiration date
     if (expirationDate) {
       const date = new Date(expirationDate);
       setCurrentDate(date.toISOString().split('T')[0]);
     } else {
-      // Default: 1 year from now
       const date = new Date();
-      date.setFullYear(date.getFullYear() + 1);
       setCurrentDate(date.toISOString().split('T')[0]);
     }
   }, [expirationDate]);
 
-  // Keyboard navigation
+  // Mettre à jour l'index sélectionné quand le focus change
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowLeft':
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : menuItems.length - 1));
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev < menuItems.length - 1 ? prev + 1 : 0));
-          break;
-        case 'Enter':
-          e.preventDefault();
-          const item = menuItems[selectedIndex];
-          onNavigate(item.id as any);
-          break;
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      const tabIndex = target.getAttribute('tabindex');
+      if (tabIndex) {
+        const index = parseInt(tabIndex) - 1;
+        if (index >= 0 && index < menuItems.length) {
+          setSelectedIndex(index);
+        }
       }
     };
+    
+    document.addEventListener('focus', handleFocus, true);
+    return () => document.removeEventListener('focus', handleFocus, true);
+  }, []);
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedIndex, menuItems, onNavigate]);
+  // Styles inline pour compatibilité Tizen
+  const containerStyle: React.CSSProperties = {
+    height: '100vh',
+    width: '100%',
+    backgroundColor: '#0a0a0a',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    fontFamily: 'Arial, sans-serif',
+  };
+
+  const headerStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    padding: '24px',
+  };
+
+  const dateStyle: React.CSSProperties = {
+    color: 'white',
+    fontSize: '24px',
+    fontWeight: 300,
+  };
+
+  const centerStyle: React.CSSProperties = {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  const logoContainerStyle: React.CSSProperties = {
+    textAlign: 'center' as const,
+  };
+
+  const logoBoxStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '160px',
+    height: '160px',
+    borderRadius: '24px',
+    background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+    boxShadow: '0 25px 50px -12px rgba(185, 28, 28, 0.5)',
+    marginBottom: '24px',
+  };
+
+  const logoTextStyle: React.CSSProperties = {
+    fontSize: '60px',
+    fontWeight: 900,
+    color: 'white',
+  };
+
+  const titleStyle: React.CSSProperties = {
+    fontSize: '48px',
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: '8px',
+  };
+
+  const subtitleStyle: React.CSSProperties = {
+    color: '#6b7280',
+    fontSize: '18px',
+  };
+
+  const menuContainerStyle: React.CSSProperties = {
+    paddingBottom: '48px',
+  };
+
+  const menuGridStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '0 20px',
+    flexWrap: 'wrap' as const,
+    maxWidth: '1400px',
+    margin: '0 auto',
+  };
 
   return (
-    <div className="h-screen w-full bg-[#0a0a0a] relative overflow-hidden flex flex-col">
-      {/* Background pattern - World map style */}
-      <div 
-        className="absolute inset-0 opacity-10"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9zm-1 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9z'/%3E%3Cpath d='M6 5V0H5v5H0v1h5v94h1V6h94V5H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}
-      />
-
-      {/* Hexagon overlay pattern */}
-      <div 
-        className="absolute inset-0 opacity-5"
-        style={{
-          backgroundImage: `radial-gradient(circle at 50% 50%, transparent 20%, #000 70%)`,
-        }}
-      />
-
-      {/* Header with date */}
-      <div className="relative z-10 flex justify-end p-6">
-        <div className="text-white text-2xl font-light tracking-wider">
-          {currentDate}
-        </div>
+    <div style={containerStyle}>
+      {/* Header */}
+      <div style={headerStyle}>
+        <div style={dateStyle}>{currentDate}</div>
       </div>
 
-      {/* Center logo */}
-      <div className="flex-1 flex items-center justify-center relative z-10">
-        <div className="text-center">
-          {/* OXO Logo */}
-          <div className="inline-flex items-center justify-center w-40 h-40 rounded-3xl bg-gradient-to-br from-red-600 to-red-700 shadow-2xl shadow-red-900/50 mb-6">
-            <span className="text-6xl font-black text-white tracking-tight">OXO</span>
+      {/* Logo central */}
+      <div style={centerStyle}>
+        <div style={logoContainerStyle}>
+          <div style={logoBoxStyle}>
+            <span style={logoTextStyle}>OXO</span>
           </div>
-          <h1 className="text-5xl font-bold text-white mb-2">OXO Player</h1>
-          <p className="text-gray-500 text-lg">Votre univers de divertissement</p>
+          <h1 style={titleStyle}>OXO Player</h1>
+          <p style={subtitleStyle}>Votre univers de divertissement</p>
         </div>
       </div>
 
-      {/* Bottom menu */}
-      <div className="relative z-10 pb-12">
-        <div className="flex justify-center gap-6 px-8">
+      {/* Menu */}
+      <div style={menuContainerStyle}>
+        <div style={menuGridStyle}>
           {menuItems.map((item, index) => {
-            const Icon = item.icon;
             const isSelected = index === selectedIndex;
-            
+            const Icon = item.Icon;
+
+            const itemStyle: React.CSSProperties = {
+              cursor: 'pointer',
+              transition: 'transform 0.2s',
+              transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+              outline: 'none',
+              width: '180px',
+              display: 'inline-block',
+            };
+
+            const iconBoxStyle: React.CSSProperties = {
+              width: '180px',
+              height: '180px',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '16px',
+              background: isSelected 
+                ? 'linear-gradient(135deg, #ef4444, #b91c1c)' 
+                : 'linear-gradient(135deg, #374151, #1f2937)',
+              boxShadow: isSelected 
+                ? '0 0 30px rgba(239, 68, 68, 0.4)' 
+                : '0 10px 15px rgba(0, 0, 0, 0.3)',
+              color: isSelected ? 'white' : '#d1d5db',
+            };
+
+            const labelStyle: React.CSSProperties = {
+              textAlign: 'center' as const,
+              padding: '16px 24px',
+              borderRadius: '12px',
+              fontWeight: 600,
+              fontSize: '16px',
+              background: isSelected 
+                ? 'linear-gradient(90deg, #dc2626, #b91c1c)' 
+                : 'rgba(31, 41, 55, 0.8)',
+              color: isSelected ? 'white' : '#9ca3af',
+              boxShadow: isSelected ? '0 4px 15px rgba(220, 38, 38, 0.3)' : 'none',
+            };
+
             return (
-              <div
+              <button
                 key={item.id}
-                onClick={() => onNavigate(item.id as any)}
+                type="button"
+                style={itemStyle}
+                tabIndex={0}
+                data-tv-auto-focus={index === 0 ? 'true' : undefined}
+                onClick={() => onNavigate(item.id as 'live' | 'movies' | 'series' | 'catchup' | 'playlist' | 'settings')}
                 onMouseEnter={() => setSelectedIndex(index)}
-                className={`cursor-pointer transition-all duration-300 ${
-                  isSelected ? 'transform scale-110 -translate-y-2' : 'hover:scale-105'
-                }`}
+                onFocus={() => setSelectedIndex(index)}
               >
-                {/* Icon container */}
-                <div className="relative mb-3">
-                  <div className={`w-32 h-32 rounded-2xl flex items-center justify-center shadow-xl transition-all duration-300 ${
-                    isSelected 
-                      ? 'bg-gradient-to-br from-red-500 to-red-700 shadow-red-500/40' 
-                      : 'bg-gradient-to-br from-gray-700 to-gray-800 shadow-black/40'
-                  }`}>
-                    <Icon className={`w-16 h-16 transition-colors ${
-                      isSelected ? 'text-white' : 'text-gray-300'
-                    }`} strokeWidth={1.5} />
-                  </div>
-                  {/* Glow effect when selected */}
-                  {isSelected && (
-                    <div className="absolute inset-0 rounded-2xl bg-red-500/20 blur-xl -z-10" />
-                  )}
+                <div style={iconBoxStyle}>
+                  <Icon />
                 </div>
-                
-                {/* Label */}
-                <div className={`text-center py-3 px-6 rounded-xl font-semibold text-base transition-all duration-300 ${
-                  isSelected 
-                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-500/30' 
-                    : 'bg-gray-800/80 text-gray-400'
-                }`}>
-                  {item.label}
-                </div>
-              </div>
+                <div style={labelStyle}>{item.label}</div>
+              </button>
             );
           })}
         </div>
@@ -142,4 +263,3 @@ export function HomePage({ onNavigate, expirationDate }: HomePageProps) {
     </div>
   );
 }
-

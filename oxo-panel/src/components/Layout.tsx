@@ -4,7 +4,6 @@ import {
   Users,
   Tv,
   History,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -24,7 +23,6 @@ export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuthStore();
 
   const isAdmin = user?.role === 'admin';
-  const baseUrl = isAdmin ? '/admin' : '/reseller';
 
   const navItems = isAdmin
     ? [

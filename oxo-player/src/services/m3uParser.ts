@@ -6,7 +6,7 @@
  * - Stockage IndexedDB pour cache persistant
  */
 
-import type { LiveChannel, VODInfo, SeriesInfo, Category } from '../types';
+import type { LiveChannel, VODInfo, SeriesInfo, Category, SeriesEpisodesMap, M3UEpisode } from '../types';
 import { playlistDB } from './playlistDB';
 
 // Types
@@ -24,6 +24,7 @@ interface ParseResult {
   channels: LiveChannel[];
   movies: VODInfo[];
   series: SeriesInfo[];
+  seriesEpisodes: SeriesEpisodesMap;
   categories: {
     live: Category[];
     vod: Category[];
@@ -39,9 +40,41 @@ interface ParseProgress {
 
 type ProgressCallback = (progress: ParseProgress) => void;
 
-// Keywords pour détecter le type de contenu
-const VOD_KEYWORDS = ['/movie/', 'VOD', 'FILM', 'MOVIE'];
-const SERIES_KEYWORDS = ['/series/', 'SERIES', 'SÉRIE', 'EPISODE', 'S0', 'S1', 'S2', 'E0', 'E1'];
+// Keywords pour détecter le type de contenu (TOUT EN MAJUSCULES pour la comparaison)
+// IMPORTANT: Le pattern d'URL Xtream est le plus fiable pour la détection
+const VOD_URL_PATTERNS = [
+  '/MOVIE/',    // Xtream Codes standard: /movie/username/password/id.ext
+  '/MOVIES/',
+];
+
+const SERIES_URL_PATTERNS = [
+  '/SERIES/',   // Xtream Codes standard: /series/username/password/id.ext
+];
+
+const VOD_KEYWORDS = [
+  'VOD', 'FILM', 'FILMS', 'MOVIE', 'MOVIES',
+  'CINEMA', 'CINÉMA', 'CINE', 'CINÉ',
+  'PELICULAS', 'PELICULA',
+  '| FR FILMS', '| FILMS', '|FILMS', '|FR FILMS',
+  'FR FILMS', 'AR FILMS', 'EN FILMS', 'US FILMS',
+  'ARABIC MOVIES', 'FRENCH MOVIES', 'ENGLISH MOVIES',
+  'ACTION FILMS', 'HORROR FILMS', 'COMEDY FILMS',
+  'DOCUMENTAIRE', 'DOCUMENTARY',
+  'أفلام', 'فيلم',  // Arabic: films
+];
+
+const SERIES_KEYWORDS = [
+  'SERIES', 'SÉRIE', 'SÉRIES', 'SERIE', 
+  'EPISODE', 'ÉPISODE', 'EPISODES',
+  'S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9',
+  'SAISON', 'SEASON',
+  '| FR SERIES', '| SERIES', '|SERIES', '|FR SERIES',
+  'FR SERIES', 'AR SERIES', 'EN SERIES', 'US SERIES',
+  'ARABIC SERIES', 'FRENCH SERIES', 'ENGLISH SERIES',
+  'TV SHOWS', 'TVSHOWS', 'SHOWS',
+  'مسلسلات', 'مسلسل',  // Arabic: series
+  '电视剧', '剧集',
+];
 
 /**
  * Vérifie si les Web Workers sont supportés
@@ -55,18 +88,50 @@ function isWorkerSupported(): boolean {
 }
 
 /**
- * Détecte le type de contenu
+ * Détecte le type de contenu basé sur l'URL et le groupe
+ * Priorité: 1) Patterns URL Xtream, 2) Keywords dans groupe, 3) Keywords dans URL
  */
-function detectContentType(url: string, group: string): 'live' | 'movie' | 'series' {
+function detectContentType(url: string, group: string, name: string = ''): 'live' | 'movie' | 'series' {
   const upperUrl = url.toUpperCase();
   const upperGroup = group.toUpperCase();
+  const upperName = name.toUpperCase();
 
-  if (SERIES_KEYWORDS.some(kw => upperUrl.includes(kw) || upperGroup.includes(kw))) {
+  // 1) PRIORITÉ HAUTE: Patterns d'URL Xtream Codes (le plus fiable)
+  // Ces patterns sont standard dans les playlists IPTV Xtream
+  if (SERIES_URL_PATTERNS.some(pattern => upperUrl.includes(pattern))) {
     return 'series';
   }
-  if (VOD_KEYWORDS.some(kw => upperUrl.includes(kw) || upperGroup.includes(kw))) {
+  if (VOD_URL_PATTERNS.some(pattern => upperUrl.includes(pattern))) {
     return 'movie';
   }
+
+  // 2) Vérifier les keywords dans le nom de groupe
+  if (SERIES_KEYWORDS.some(kw => upperGroup.includes(kw))) {
+    return 'series';
+  }
+  if (VOD_KEYWORDS.some(kw => upperGroup.includes(kw))) {
+    return 'movie';
+  }
+
+  // 3) Vérifier les patterns dans le nom du contenu (pour les séries avec S01E01, etc.)
+  // Regex pour détecter les patterns de séries comme S01E01, S1E1, etc.
+  const seriesPattern = /S\d{1,2}\s*E\d{1,2}|SEASON\s*\d|SAISON\s*\d|EP\s*\d{1,3}/i;
+  if (seriesPattern.test(upperName)) {
+    return 'series';
+  }
+
+  // 4) Vérifier les extensions de fichiers vidéo typiques des VOD
+  const vodExtensions = ['.MKV', '.MP4', '.AVI', '.MOV', '.M4V'];
+  if (vodExtensions.some(ext => upperUrl.endsWith(ext))) {
+    // Si c'est un fichier vidéo avec extension, c'est probablement un VOD ou série
+    // On vérifie si ça ressemble à un épisode de série
+    if (seriesPattern.test(upperName) || seriesPattern.test(upperGroup)) {
+      return 'series';
+    }
+    return 'movie';
+  }
+
+  // Par défaut: live TV
   return 'live';
 }
 
@@ -111,44 +176,128 @@ function m3uToMovies(channels: M3UChannel[]): VODInfo[] {
 }
 
 /**
- * Convertit les canaux M3U en format SeriesInfo
+ * Extrait le numéro de saison et d'épisode depuis le nom
  */
-function m3uToSeries(channels: M3UChannel[]): SeriesInfo[] {
+function extractEpisodeInfo(name: string): { seasonNum: number; episodeNum: number; cleanName: string } {
+  // Patterns courants: S01E01, S1E1, S01 E01, Season 1 Episode 1, etc.
+  const patterns = [
+    /[Ss](\d{1,2})\s*[Ee](\d{1,3})/,           // S01E01, S1E1
+    /[Ss]aison\s*(\d{1,2})\s*[Ee]p?\s*(\d{1,3})/i,  // Saison 1 Ep 1
+    /[Ss]eason\s*(\d{1,2})\s*[Ee]p?\s*(\d{1,3})/i,  // Season 1 Ep 1
+    /(\d{1,2})x(\d{1,3})/,                     // 1x01
+  ];
+  
+  for (const pattern of patterns) {
+    const match = name.match(pattern);
+    if (match) {
+      const cleanName = name
+        .replace(pattern, '')
+        .replace(/\s*-?\s*$/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return {
+        seasonNum: parseInt(match[1], 10),
+        episodeNum: parseInt(match[2], 10),
+        cleanName: cleanName || name.split(/[Ss]\d/)[0].trim(),
+      };
+    }
+  }
+  
+  // Si pas de pattern trouvé, essayer d'extraire juste un numéro d'épisode
+  const epMatch = name.match(/[Ee]p(?:isode)?\s*(\d{1,3})/i);
+  if (epMatch) {
+    return {
+      seasonNum: 1,
+      episodeNum: parseInt(epMatch[1], 10),
+      cleanName: name.replace(/[Ee]p(?:isode)?\s*\d{1,3}/i, '').trim(),
+    };
+  }
+  
+  return { seasonNum: 1, episodeNum: 1, cleanName: name };
+}
+
+/**
+ * Convertit les canaux M3U en format SeriesInfo + épisodes
+ */
+function m3uToSeries(channels: M3UChannel[]): { series: SeriesInfo[]; episodes: SeriesEpisodesMap } {
   // Grouper les épisodes par série (basé sur le nom avant les patterns S01E01, etc.)
-  const seriesMap = new Map<string, M3UChannel[]>();
+  const seriesMap = new Map<string, { channels: M3UChannel[]; episodeInfos: { seasonNum: number; episodeNum: number }[] }>();
   
   channels.forEach((channel) => {
-    // Extraire le nom de la série (sans numéro d'épisode)
-    const seriesName = channel.name
-      .replace(/\s*[Ss]\d+[Ee]\d+.*$/, '')
-      .replace(/\s*-?\s*[Ee]pisode\s*\d+.*$/i, '')
-      .replace(/\s*\(\d+\).*$/, '')
-      .trim();
+    const { seasonNum, episodeNum, cleanName } = extractEpisodeInfo(channel.name);
+    
+    // Utiliser le nom nettoyé ou le group-title comme nom de série
+    let seriesName = cleanName;
+    if (!seriesName || seriesName.length < 2) {
+      seriesName = channel.group || 'Unknown Series';
+    }
     
     if (!seriesMap.has(seriesName)) {
-      seriesMap.set(seriesName, []);
+      seriesMap.set(seriesName, { channels: [], episodeInfos: [] });
     }
-    seriesMap.get(seriesName)!.push(channel);
+    seriesMap.get(seriesName)!.channels.push(channel);
+    seriesMap.get(seriesName)!.episodeInfos.push({ seasonNum, episodeNum });
   });
 
-  return Array.from(seriesMap.entries()).map(([name, episodes], idx) => ({
-    num: idx + 1,
-    name,
-    series_id: idx + 20000, // Offset pour éviter les conflits
-    cover: episodes[0]?.logo || '',
-    plot: '',
-    cast: '',
-    director: '',
-    genre: episodes[0]?.group || '',
-    releaseDate: '',
-    last_modified: new Date().toISOString(),
-    rating: '',
-    rating_5based: 0,
-    backdrop_path: [],
-    youtube_trailer: '',
-    episode_run_time: '',
-    category_id: episodes[0]?.group || '',
-  }));
+  const seriesList: SeriesInfo[] = [];
+  const episodesMap: SeriesEpisodesMap = {};
+
+  Array.from(seriesMap.entries()).forEach(([name, data], idx) => {
+    const seriesId = idx + 20000; // Offset pour éviter les conflits
+    
+    // Créer l'objet SeriesInfo
+    seriesList.push({
+      num: idx + 1,
+      name,
+      series_id: seriesId,
+      cover: data.channels[0]?.logo || '',
+      plot: '',
+      cast: '',
+      director: '',
+      genre: data.channels[0]?.group || '',
+      releaseDate: '',
+      last_modified: new Date().toISOString(),
+      rating: '',
+      rating_5based: 0,
+      backdrop_path: [],
+      youtube_trailer: '',
+      episode_run_time: '',
+      category_id: data.channels[0]?.group || '',
+    });
+
+    // Créer les épisodes regroupés par saison
+    episodesMap[seriesId] = {};
+    
+    data.channels.forEach((channel, epIdx) => {
+      const { seasonNum, episodeNum } = data.episodeInfos[epIdx];
+      const seasonKey = seasonNum.toString();
+      
+      if (!episodesMap[seriesId][seasonKey]) {
+        episodesMap[seriesId][seasonKey] = [];
+      }
+      
+      const episode: M3UEpisode = {
+        id: `${seriesId}_${seasonNum}_${episodeNum}_${epIdx}`,
+        seriesId,
+        seriesName: name,
+        episodeNum,
+        seasonNum,
+        title: channel.name,
+        url: channel.url,
+        logo: channel.logo,
+        container_extension: channel.url.split('.').pop() || 'mp4',
+      };
+      
+      episodesMap[seriesId][seasonKey].push(episode);
+    });
+
+    // Trier les épisodes par numéro
+    Object.keys(episodesMap[seriesId]).forEach((seasonKey) => {
+      episodesMap[seriesId][seasonKey].sort((a, b) => a.episodeNum - b.episodeNum);
+    });
+  });
+
+  return { series: seriesList, episodes: episodesMap };
 }
 
 /**
@@ -217,7 +366,7 @@ function parseM3USynchronous(content: string, onProgress?: ProgressCallback): {
     } else if (line && !line.startsWith('#') && currentChannel.name) {
       currentChannel.url = line;
       
-      const contentType = detectContentType(line, currentChannel.group || '');
+      const contentType = detectContentType(line, currentChannel.group || '', currentChannel.name || '');
       currentChannel.type = contentType;
 
       const channel = currentChannel as M3UChannel;
@@ -266,14 +415,59 @@ async function parseM3UWithWorker(content: string, onProgress?: ProgressCallback
     try {
       // Créer le worker inline pour éviter les problèmes de chemin
       const workerCode = `
-        const VOD_KEYWORDS = ['/movie/', 'VOD', 'FILM', 'MOVIE'];
-        const SERIES_KEYWORDS = ['/series/', 'SERIES', 'SÉRIE', 'EPISODE', 'S0', 'S1', 'S2', 'E0', 'E1'];
+        // URL patterns Xtream Codes (priorité haute)
+        const VOD_URL_PATTERNS = ['/MOVIE/', '/MOVIES/'];
+        const SERIES_URL_PATTERNS = ['/SERIES/'];
+        
+        const VOD_KEYWORDS = [
+          'VOD', 'FILM', 'FILMS', 'MOVIE', 'MOVIES',
+          'CINEMA', 'CINÉMA', 'CINE', 'CINÉ',
+          'PELICULAS', 'PELICULA',
+          '| FR FILMS', '| FILMS', '|FILMS', '|FR FILMS',
+          'FR FILMS', 'AR FILMS', 'EN FILMS', 'US FILMS',
+          'ARABIC MOVIES', 'FRENCH MOVIES', 'ENGLISH MOVIES',
+          'ACTION FILMS', 'HORROR FILMS', 'COMEDY FILMS',
+          'DOCUMENTAIRE', 'DOCUMENTARY',
+          'أفلام', 'فيلم',
+        ];
+        const SERIES_KEYWORDS = [
+          'SERIES', 'SÉRIE', 'SÉRIES', 'SERIE', 
+          'EPISODE', 'ÉPISODE', 'EPISODES',
+          'S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9',
+          'SAISON', 'SEASON',
+          '| FR SERIES', '| SERIES', '|SERIES', '|FR SERIES',
+          'FR SERIES', 'AR SERIES', 'EN SERIES', 'US SERIES',
+          'ARABIC SERIES', 'FRENCH SERIES', 'ENGLISH SERIES',
+          'TV SHOWS', 'TVSHOWS', 'SHOWS',
+          'مسلسلات', 'مسلسل',
+          '电视剧', '剧集',
+        ];
+        
+        const VOD_EXTENSIONS = ['.MKV', '.MP4', '.AVI', '.MOV', '.M4V'];
+        const SERIES_PATTERN = /S\\d{1,2}\\s*E\\d{1,2}|SEASON\\s*\\d|SAISON\\s*\\d|EP\\s*\\d{1,3}/i;
 
-        function detectContentType(url, group) {
+        function detectContentType(url, group, name) {
           const upperUrl = url.toUpperCase();
           const upperGroup = group.toUpperCase();
-          if (SERIES_KEYWORDS.some(kw => upperUrl.includes(kw) || upperGroup.includes(kw))) return 'series';
-          if (VOD_KEYWORDS.some(kw => upperUrl.includes(kw) || upperGroup.includes(kw))) return 'movie';
+          const upperName = (name || '').toUpperCase();
+          
+          // 1) Priorité: patterns URL Xtream
+          if (SERIES_URL_PATTERNS.some(p => upperUrl.includes(p))) return 'series';
+          if (VOD_URL_PATTERNS.some(p => upperUrl.includes(p))) return 'movie';
+          
+          // 2) Keywords dans groupe
+          if (SERIES_KEYWORDS.some(kw => upperGroup.includes(kw))) return 'series';
+          if (VOD_KEYWORDS.some(kw => upperGroup.includes(kw))) return 'movie';
+          
+          // 3) Pattern série dans le nom (S01E01, etc.)
+          if (SERIES_PATTERN.test(upperName)) return 'series';
+          
+          // 4) Extension fichier vidéo
+          if (VOD_EXTENSIONS.some(ext => upperUrl.endsWith(ext))) {
+            if (SERIES_PATTERN.test(upperName) || SERIES_PATTERN.test(upperGroup)) return 'series';
+            return 'movie';
+          }
+          
           return 'live';
         }
 
@@ -322,7 +516,7 @@ async function parseM3UWithWorker(content: string, onProgress?: ProgressCallback
               };
             } else if (line && !line.startsWith('#') && currentChannel.name) {
               currentChannel.url = line;
-              const contentType = detectContentType(line, currentChannel.group || '');
+              const contentType = detectContentType(line, currentChannel.group || '', currentChannel.name || '');
               currentChannel.type = contentType;
 
               switch (contentType) {
@@ -424,17 +618,32 @@ export async function parseM3U(
   }
 
   const parseTime = performance.now() - startTime;
-  console.log(`Parsed in ${parseTime.toFixed(0)}ms:`, {
-    channels: parsed.channels.length,
-    movies: parsed.movies.length,
-    series: parsed.series.length,
+  console.log(`✅ M3U Parsed in ${parseTime.toFixed(0)}ms:`);
+  console.log(`   📺 Live TV: ${parsed.channels.length} channels`);
+  console.log(`   🎬 Movies (VOD): ${parsed.movies.length} films`);
+  console.log(`   📺 Series: ${parsed.series.length} series`);
+  console.log(`   📂 Categories:`, {
+    live: parsed.categories.live.length,
+    vod: parsed.categories.vod.length,
+    series: parsed.categories.series.length,
   });
+  
+  // Debug: Montrer quelques exemples de chaque type
+  if (parsed.movies.length > 0) {
+    console.log('   🎬 Sample movies:', parsed.movies.slice(0, 3).map(m => ({ name: m.name, group: m.group, url: m.url?.substring(0, 80) + '...' })));
+  }
+  if (parsed.series.length > 0) {
+    console.log('   📺 Sample series:', parsed.series.slice(0, 3).map(s => ({ name: s.name, group: s.group, url: s.url?.substring(0, 80) + '...' })));
+  }
 
   // Convertir au format de l'app
+  const seriesData = m3uToSeries(parsed.series);
+  
   const result: ParseResult = {
     channels: m3uToLiveChannels(parsed.channels),
     movies: m3uToMovies(parsed.movies),
-    series: m3uToSeries(parsed.series),
+    series: seriesData.series,
+    seriesEpisodes: seriesData.episodes,
     categories: {
       live: toCategories(parsed.categories.live),
       vod: toCategories(parsed.categories.vod),
@@ -543,6 +752,7 @@ export async function loadFromCache(): Promise<ParseResult | null> {
       channels,
       movies,
       series,
+      seriesEpisodes: {}, // TODO: Charger depuis IndexedDB si disponible
       categories: {
         live: liveCategories,
         vod: vodCategories,

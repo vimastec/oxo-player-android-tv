@@ -5,7 +5,28 @@ import { CategoryBar } from '../components/CategoryBar';
 import { SearchBar } from '../components/SearchBar';
 import { VideoPlayer } from '../components/VideoPlayer';
 import xtreamApi from '../services/xtreamApi';
-import type { SeriesInfo, SeriesDetails, Episode } from '../types';
+import type { SeriesInfo, SeriesDetails, Episode, M3UEpisode } from '../types';
+
+// Type pour les épisodes locaux (M3U) ou API (Xtream)
+type LocalOrApiEpisode = Episode | M3UEpisode;
+
+// Helper pour obtenir les propriétés d'un épisode de manière unifiée
+function getEpisodeInfo(episode: LocalOrApiEpisode) {
+  // Épisode M3U local
+  if ('episodeNum' in episode) {
+    return {
+      episodeNum: episode.episodeNum,
+      title: episode.title,
+      duration: undefined as string | undefined,
+    };
+  }
+  // Épisode API Xtream
+  return {
+    episodeNum: episode.episode_num,
+    title: episode.title,
+    duration: episode.info?.duration,
+  };
+}
 
 interface SeriesPageProps {
   onBack?: () => void;
@@ -14,13 +35,14 @@ interface SeriesPageProps {
 const ITEMS_PER_PAGE = 50;
 
 export function SeriesPage({ onBack }: SeriesPageProps) {
-  const { series, seriesCategories, searchQuery, credentials, addFavorite, removeFavorite, isFavorite } = useAppStore();
+  const { series, seriesCategories, seriesEpisodes, searchQuery, credentials, addFavorite, removeFavorite, isFavorite } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSeries, setSelectedSeries] = useState<SeriesInfo | null>(null);
   const [seriesDetails, setSeriesDetails] = useState<SeriesDetails | null>(null);
+  const [localEpisodes, setLocalEpisodes] = useState<{ [season: string]: M3UEpisode[] } | null>(null);
   const [selectedSeason, setSelectedSeason] = useState<number>(1);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-  const [playingEpisode, setPlayingEpisode] = useState<Episode | null>(null);
+  const [playingEpisode, setPlayingEpisode] = useState<LocalOrApiEpisode | null>(null);
   
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedEpisodeIndex, setSelectedEpisodeIndex] = useState(0);
@@ -50,9 +72,27 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
   }, [selectedCategory, searchQuery]);
 
   useEffect(() => {
-    if (selectedSeries && credentials) {
-      setIsLoadingDetails(true);
-      setSelectedEpisodeIndex(0);
+    if (!selectedSeries) return;
+    
+    setIsLoadingDetails(true);
+    setSelectedEpisodeIndex(0);
+    setLocalEpisodes(null);
+    setSeriesDetails(null);
+    
+    // 1. Vérifier d'abord si on a des épisodes locaux (parsés depuis M3U)
+    const localEps = seriesEpisodes[selectedSeries.series_id];
+    if (localEps && Object.keys(localEps).length > 0) {
+      console.log('📺 Using local M3U episodes for series:', selectedSeries.name);
+      setLocalEpisodes(localEps);
+      const seasons = Object.keys(localEps).map(Number).sort((a, b) => a - b);
+      if (seasons.length > 0) setSelectedSeason(seasons[0]);
+      setIsLoadingDetails(false);
+      return;
+    }
+    
+    // 2. Sinon, essayer l'API Xtream si on a des credentials
+    if (credentials) {
+      console.log('🌐 Fetching series details from Xtream API:', selectedSeries.name);
       xtreamApi.setCredentials(credentials);
       xtreamApi.getSeriesInfo(selectedSeries.series_id)
         .then((details) => {
@@ -62,102 +102,40 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
             if (seasons.length > 0) setSelectedSeason(seasons[0]);
           }
         })
-        .catch(console.error)
+        .catch((error) => {
+          console.error('Failed to fetch series info from API:', error);
+          // Si l'API échoue, on n'a pas d'épisodes
+        })
         .finally(() => setIsLoadingDetails(false));
+    } else {
+      console.log('⚠️ No credentials and no local episodes for series:', selectedSeries.name);
+      setIsLoadingDetails(false);
     }
-  }, [selectedSeries, credentials]);
+  }, [selectedSeries, credentials, seriesEpisodes]);
 
-  const currentEpisodes = useMemo(() => {
-    if (!seriesDetails?.episodes) return [];
-    return seriesDetails.episodes[selectedSeason.toString()] || [];
-  }, [seriesDetails, selectedSeason]);
+  const currentEpisodes = useMemo((): LocalOrApiEpisode[] => {
+    // Priorité aux épisodes locaux (M3U)
+    if (localEpisodes) {
+      return localEpisodes[selectedSeason.toString()] || [];
+    }
+    // Sinon utiliser les épisodes de l'API Xtream
+    if (seriesDetails?.episodes) {
+      return seriesDetails.episodes[selectedSeason.toString()] || [];
+    }
+    return [];
+  }, [localEpisodes, seriesDetails, selectedSeason]);
 
   const availableSeasons = useMemo(() => {
-    if (!seriesDetails?.episodes) return [];
-    return Object.keys(seriesDetails.episodes).map(Number).sort((a, b) => a - b);
-  }, [seriesDetails]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (playingEpisode) return;
-
-      if (selectedSeries) {
-        const maxEpisodeIndex = currentEpisodes.length - 1;
-        switch (e.key) {
-          case 'ArrowUp':
-            e.preventDefault();
-            setSelectedEpisodeIndex(prev => Math.max(0, prev - 1));
-            break;
-          case 'ArrowDown':
-            e.preventDefault();
-            setSelectedEpisodeIndex(prev => Math.min(maxEpisodeIndex, prev + 1));
-            break;
-          case 'ArrowLeft':
-            e.preventDefault();
-            const prevIdx = availableSeasons.indexOf(selectedSeason);
-            if (prevIdx > 0) {
-              setSelectedSeason(availableSeasons[prevIdx - 1]);
-              setSelectedEpisodeIndex(0);
-            }
-            break;
-          case 'ArrowRight':
-            e.preventDefault();
-            const nextIdx = availableSeasons.indexOf(selectedSeason);
-            if (nextIdx < availableSeasons.length - 1) {
-              setSelectedSeason(availableSeasons[nextIdx + 1]);
-              setSelectedEpisodeIndex(0);
-            }
-            break;
-          case 'Enter':
-            e.preventDefault();
-            if (currentEpisodes[selectedEpisodeIndex]) {
-              setPlayingEpisode(currentEpisodes[selectedEpisodeIndex]);
-            }
-            break;
-          case 'Escape':
-          case 'Backspace':
-            e.preventDefault();
-            setSelectedSeries(null);
-            setSeriesDetails(null);
-            break;
-        }
-        return;
-      }
-
-      const columnsPerRow = 6;
-      const maxIndex = paginatedSeries.length - 1;
-      switch (e.key) {
-        case 'ArrowUp':
-          e.preventDefault();
-          setSelectedIndex(prev => Math.max(0, prev - columnsPerRow));
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          setSelectedIndex(prev => Math.min(maxIndex, prev + columnsPerRow));
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          setSelectedIndex(prev => Math.max(0, prev - 1));
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          setSelectedIndex(prev => Math.min(maxIndex, prev + 1));
-          break;
-        case 'Enter':
-          e.preventDefault();
-          if (paginatedSeries[selectedIndex]) setSelectedSeries(paginatedSeries[selectedIndex]);
-          break;
-        case 'Escape':
-        case 'Backspace':
-          e.preventDefault();
-          if (onBack) onBack();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [paginatedSeries, selectedIndex, selectedSeries, currentEpisodes, selectedEpisodeIndex, availableSeasons, selectedSeason, playingEpisode, onBack]);
+    // Priorité aux épisodes locaux (M3U)
+    if (localEpisodes) {
+      return Object.keys(localEpisodes).map(Number).sort((a, b) => a - b);
+    }
+    // Sinon utiliser les épisodes de l'API Xtream
+    if (seriesDetails?.episodes) {
+      return Object.keys(seriesDetails.episodes).map(Number).sort((a, b) => a - b);
+    }
+    return [];
+  }, [localEpisodes, seriesDetails]);
 
   const handleSeriesClick = useCallback((seriesItem: SeriesInfo, index: number) => {
     if (selectedIndex === index) {
@@ -182,9 +160,16 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
     }
   }, [isFavorite, removeFavorite, addFavorite]);
 
-  const getEpisodeUrl = useCallback((episode: Episode): string => {
-    if (episode.direct_source) return episode.direct_source;
-    if (credentials) {
+  const getEpisodeUrl = useCallback((episode: LocalOrApiEpisode): string => {
+    // Épisode M3U local - utiliser l'URL directe
+    if ('url' in episode && episode.url) {
+      return episode.url;
+    }
+    // Épisode API Xtream
+    if ('direct_source' in episode && episode.direct_source) {
+      return episode.direct_source;
+    }
+    if (credentials && 'id' in episode) {
       xtreamApi.setCredentials(credentials);
       return xtreamApi.getSeriesStreamUrl(parseInt(episode.id), episode.container_extension || 'mp4');
     }
@@ -241,12 +226,19 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {currentEpisodes.map((episode, index) => {
                   const isSelected = index === selectedEpisodeIndex;
+                  const epInfo = getEpisodeInfo(episode);
                   return (
-                    <div key={episode.id} onClick={() => {
+                    <button
+                      key={episode.id}
+                      type="button"
+                      tabIndex={0}
+                      data-tv-auto-focus={index === 0 ? 'true' : undefined}
+                      onFocus={() => setSelectedEpisodeIndex(index)}
+                      onClick={() => {
                         if (isSelected) setPlayingEpisode(episode);
                         else setSelectedEpisodeIndex(index);
                       }}
-                      className={`bg-oxo-card border rounded-xl p-4 cursor-pointer transition-all
+                      className={`bg-oxo-card border rounded-xl p-4 cursor-pointer transition-all text-left
                         ${isSelected ? 'border-blue-500 ring-2 ring-blue-500 bg-blue-500/10' : 'border-oxo-border hover:border-oxo-primary'}`}>
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors
@@ -254,12 +246,12 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
                           <Play className="w-6 h-6" fill={isSelected ? 'white' : 'currentColor'} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium truncate">Épisode {episode.episode_num}</h4>
-                          <p className="text-sm text-oxo-muted truncate">{episode.title || `Épisode ${episode.episode_num}`}</p>
-                          {episode.info?.duration && <p className="text-xs text-oxo-muted mt-1">{episode.info.duration}</p>}
+                          <h4 className="font-medium truncate">Épisode {epInfo.episodeNum}</h4>
+                          <p className="text-sm text-oxo-muted truncate">{epInfo.title || `Épisode ${epInfo.episodeNum}`}</p>
+                          {epInfo.duration && <p className="text-xs text-oxo-muted mt-1">{epInfo.duration}</p>}
                         </div>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -276,7 +268,7 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
             src={getEpisodeUrl(playingEpisode)}
             streamId={parseInt(playingEpisode.id)}
             streamType="series"
-            title={`${selectedSeries.name} - S${selectedSeason}E${playingEpisode.episode_num}`}
+            title={`${selectedSeries.name} - S${selectedSeason}E${getEpisodeInfo(playingEpisode).episodeNum}`}
             onClose={() => setPlayingEpisode(null)}
           />
         )}
@@ -321,8 +313,14 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
                 const isSelected = index === selectedIndex;
                 const isFav = isFavorite(seriesItem.series_id, 'series');
                 return (
-                  <div key={seriesItem.series_id} onClick={() => handleSeriesClick(seriesItem, index)}
-                    className={`group relative bg-oxo-card rounded-xl overflow-hidden border cursor-pointer transition-all duration-200
+                  <button
+                    key={seriesItem.series_id}
+                    type="button"
+                    tabIndex={0}
+                    data-tv-auto-focus={index === 0 ? 'true' : undefined}
+                    onFocus={() => setSelectedIndex(index)}
+                    onClick={() => handleSeriesClick(seriesItem, index)}
+                    className={`group relative bg-oxo-card rounded-xl overflow-hidden border cursor-pointer transition-all duration-200 text-left
                       ${isSelected ? 'border-blue-500 ring-2 ring-blue-500 scale-105 z-10' : 'border-oxo-border hover:border-oxo-primary'}`}>
                     <div className="aspect-[2/3] bg-oxo-darker relative overflow-hidden">
                       {seriesItem.cover ? (
@@ -351,7 +349,7 @@ export function SeriesPage({ onBack }: SeriesPageProps) {
                       </div>
                       {seriesItem.genre && <p className="text-xs text-oxo-muted mt-1 truncate">{seriesItem.genre}</p>}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

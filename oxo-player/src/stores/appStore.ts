@@ -9,6 +9,7 @@ import type {
   LiveChannel,
   VODInfo,
   SeriesInfo,
+  SeriesEpisodesMap,
   PlaybackProgress,
   Favorite,
 } from '../types';
@@ -37,9 +38,11 @@ interface AppStore {
   liveChannels: LiveChannel[];
   movies: VODInfo[];
   series: SeriesInfo[];
+  seriesEpisodes: SeriesEpisodesMap;
   setLiveChannels: (channels: LiveChannel[]) => void;
   setMovies: (movies: VODInfo[]) => void;
   setSeries: (series: SeriesInfo[]) => void;
+  setSeriesEpisodes: (episodes: SeriesEpisodesMap) => void;
 
   // Connection actions
   setCredentials: (credentials: XtreamCredentials) => void;
@@ -86,6 +89,7 @@ export const useAppStore = create<AppStore>()(
       liveChannels: [],
       movies: [],
       series: [],
+      seriesEpisodes: {},
 
       // Playback progress
       playbackProgress: {},
@@ -108,6 +112,7 @@ export const useAppStore = create<AppStore>()(
       setLiveChannels: (channels) => set({ liveChannels: channels }),
       setMovies: (movies) => set({ movies: movies }),
       setSeries: (series) => set({ series: series }),
+      setSeriesEpisodes: (episodes) => set({ seriesEpisodes: episodes }),
 
       // Connection actions
       setCredentials: (credentials) => set({ credentials }),
@@ -128,6 +133,7 @@ export const useAppStore = create<AppStore>()(
           liveChannels: [],
           movies: [],
           series: [],
+          seriesEpisodes: {},
         }),
 
       // Playback progress
@@ -179,6 +185,11 @@ export const useAppStore = create<AppStore>()(
         credentials: state.credentials,
         liveChannels: state.liveChannels,
         liveCategories: state.liveCategories,
+        movies: state.movies,
+        vodCategories: state.vodCategories,
+        series: state.series,
+        seriesCategories: state.seriesCategories,
+        seriesEpisodes: state.seriesEpisodes,
         playbackProgress: state.playbackProgress,
         favorites: state.favorites,
       }),
