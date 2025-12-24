@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { db } = require('../database');
+const { generateDeviceKey } = require('../migrations/add_portal_support');
 
 const router = express.Router();
 
@@ -30,16 +31,22 @@ router.post('/register', (req, res) => {
   const now = new Date();
 
   if (!device) {
-    // Create new device with trial period
+    // Create new device with trial period and device key
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
+    const deviceKey = generateDeviceKey();
 
     db.prepare(`
-      INSERT INTO devices (mac_address, status, trial_start, expiration_date, device_info, last_seen)
-      VALUES (?, 'trial', ?, ?, ?, ?)
-    `).run(formattedMac, now.toISOString(), trialEnd.toISOString(), device_info || null, now.toISOString());
+      INSERT INTO devices (mac_address, device_key, status, trial_start, expiration_date, device_info, last_seen)
+      VALUES (?, ?, 'trial', ?, ?, ?, ?)
+    `).run(formattedMac, deviceKey, now.toISOString(), trialEnd.toISOString(), device_info || null, now.toISOString());
 
     device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  } else if (!device.device_key) {
+    // Generate device_key for existing devices without one
+    const deviceKey = generateDeviceKey();
+    db.prepare('UPDATE devices SET device_key = ? WHERE mac_address = ?').run(deviceKey, formattedMac);
+    device.device_key = deviceKey;
   } else {
     // Update last seen
     db.prepare('UPDATE devices SET last_seen = ?, device_info = ? WHERE mac_address = ?')
@@ -72,6 +79,7 @@ router.post('/register', (req, res) => {
 
   res.json({
     mac_address: formattedMac,
+    device_key: device.device_key,
     status: device.status,
     trial_start: device.trial_start,
     activation_date: device.activation_date,

@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const resellerRoutes = require('./routes/reseller');
 const deviceRoutes = require('./routes/device');
+const portalRoutes = require('./routes/portal');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -92,6 +93,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reseller', resellerRoutes);
 app.use('/api/device', deviceRoutes);
+app.use('/api/portal', portalRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -100,6 +102,21 @@ app.get('/api/health', (req, res) => {
 
 // Initialize database and start server
 db.init();
+
+// Run migrations after DB init
+try {
+  const xtreamMigration = require('./migrations/add_xtream_fields');
+  xtreamMigration.runMigration();
+} catch (err) {
+  console.log('Xtream migration already applied or failed:', err.message);
+}
+
+try {
+  const portalMigration = require('./migrations/add_portal_support');
+  portalMigration.runMigration();
+} catch (err) {
+  console.log('Portal migration already applied or failed:', err.message);
+}
 
 app.listen(PORT, () => {
   console.log(`
