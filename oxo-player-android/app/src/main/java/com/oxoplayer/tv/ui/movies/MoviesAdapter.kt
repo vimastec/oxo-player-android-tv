@@ -6,9 +6,9 @@ import android.view.ViewGroup
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.google.android.material.card.MaterialCardView
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.models.Movie
 
@@ -25,7 +25,7 @@ class MoviesAdapter(
     private val ANIMATION_DURATION = 200L
     
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val card: MaterialCardView = view.findViewById(R.id.movieCard)
+        val card: CardView = view.findViewById(R.id.movieCard)
         val poster: ImageView = view.findViewById(R.id.moviePoster)
         val name: TextView = view.findViewById(R.id.movieName)
         
@@ -68,12 +68,6 @@ class MoviesAdapter(
                         .setDuration(ANIMATION_DURATION)
                         .start()
                     
-                    // Add border effect
-                    card.strokeWidth = 4
-                    card.setStrokeColor(android.content.res.ColorStateList.valueOf(
-                        itemView.context.getColor(R.color.primary)
-                    ))
-                    
                     // Bring to front in parent
                     v.parent?.let { parent ->
                         (parent as? ViewGroup)?.let { vg ->
@@ -95,9 +89,6 @@ class MoviesAdapter(
                         .translationZ(ELEVATION_NORMAL)
                         .setDuration(ANIMATION_DURATION)
                         .start()
-                    
-                    // Remove border
-                    card.strokeWidth = 0
                 }
             }
         }

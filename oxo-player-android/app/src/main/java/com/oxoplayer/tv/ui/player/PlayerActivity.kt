@@ -84,7 +84,7 @@ class PlayerActivity : AppCompatActivity() {
     private var countdownRunnable: Runnable? = null
     private val positionCheckHandler = Handler(Looper.getMainLooper())
     private var positionCheckRunnable: Runnable? = null
-    private val NEXT_EPISODE_THRESHOLD_MS = 15000L // Show button 15 seconds before end
+    private val NEXT_EPISODE_THRESHOLD_MS = 60000L // Show button 60 seconds (1 minute) before end
     
     // Audio Manager
     private lateinit var audioManager: AudioManager
@@ -122,8 +122,8 @@ class PlayerActivity : AppCompatActivity() {
         retryCount = 0
         hasTriedSoftwareDecoder = false
         
+        parseIntent() // MUST be called before initViews for seasons data
         initViews()
-        parseIntent()
         
         if (streamUrl == null) {
             Toast.makeText(this, "URL de stream invalide", Toast.LENGTH_SHORT).show()
@@ -232,6 +232,8 @@ class PlayerActivity : AppCompatActivity() {
         btnEpisodesContainer = playerView.findViewById(R.id.btn_episodes_container)
         btnAudioSubtitlesContainer = playerView.findViewById(R.id.btn_audio_subtitles_container)
         
+        android.util.Log.d("PlayerActivity", "setupBottomControls - type: $type, seasons: ${seasons.size}")
+        
         // Show bottom options row for movies and series
         if (type == "MOVIE" || type == "SERIES") {
             seriesOptionsRow?.visibility = View.VISIBLE
@@ -239,23 +241,78 @@ class PlayerActivity : AppCompatActivity() {
             // Show Episodes button only for series with seasons data
             if (type == "SERIES" && seasons.isNotEmpty()) {
                 btnEpisodesContainer?.visibility = View.VISIBLE
+                android.util.Log.d("PlayerActivity", "Episodes button VISIBLE - ${seasons.size} seasons available")
+            } else {
+                android.util.Log.d("PlayerActivity", "Episodes button HIDDEN - seasons empty or not series")
             }
         }
         
-        // Info button
+        // Setup click listeners
         btnInfoContainer?.setOnClickListener {
             showStreamInfo()
         }
         
-        // Episodes button
         btnEpisodesContainer?.setOnClickListener {
             showEpisodesSelector()
         }
         
-        // Audio & Subtitles button
         btnAudioSubtitlesContainer?.setOnClickListener {
             showAudioSubtitlesDialog()
         }
+        
+        // Setup D-pad navigation between bottom buttons
+        setupBottomButtonsNavigation()
+    }
+    
+    /**
+     * Setup D-pad navigation for bottom row buttons
+     */
+    private fun setupBottomButtonsNavigation() {
+        val info = btnInfoContainer
+        val episodes = btnEpisodesContainer
+        val audioSub = btnAudioSubtitlesContainer
+        
+        if (info == null || audioSub == null) return
+        
+        // Check if episodes button is visible
+        val episodesVisible = episodes?.visibility == View.VISIBLE
+        
+        // Create list of visible buttons for navigation
+        val buttons = mutableListOf<View>()
+        buttons.add(info)
+        if (episodesVisible && episodes != null) {
+            buttons.add(episodes)
+        }
+        buttons.add(audioSub)
+        
+        // Setup key listeners for each button to handle D-pad navigation manually
+        for ((index, button) in buttons.withIndex()) {
+            button.setOnKeyListener { v, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            if (index > 0) {
+                                buttons[index - 1].requestFocus()
+                                return@setOnKeyListener true
+                            }
+                        }
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (index < buttons.size - 1) {
+                                buttons[index + 1].requestFocus()
+                                return@setOnKeyListener true
+                            }
+                        }
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            v.performClick()
+                            return@setOnKeyListener true
+                        }
+                    }
+                }
+                false
+            }
+        }
+        
+        android.util.Log.d("PlayerActivity", "Bottom navigation setup complete, buttons: ${buttons.size}, episodesVisible: $episodesVisible")
     }
     
     /**
@@ -276,20 +333,106 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
-        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
-            .setTitle("Audio & Sous-titres")
-            .setItems(options.toTypedArray()) { _, which ->
-                when {
-                    options[which].contains("Audio") -> showAudioTrackSelector()
-                    options[which].contains("Sous-titres") -> showSubtitleTrackSelector()
-                }
+        showTVFriendlyDialog("Audio & Sous-titres", options, -1) { which ->
+            when {
+                options[which].contains("Audio") -> showAudioTrackSelector()
+                options[which].contains("Sous-titres") -> showSubtitleTrackSelector()
             }
-            .setNegativeButton("Fermer", null)
-            .show()
+        }
     }
     
     /**
-     * Show episodes selector dialog (Netflix-style)
+     * Show a TV-friendly dialog with visible focus (orange background)
+     */
+    private fun showTVFriendlyDialog(
+        title: String, 
+        items: List<String>, 
+        selectedIndex: Int,
+        onItemSelected: (Int) -> Unit
+    ) {
+        // Create custom ListView with proper focus handling
+        val listView = android.widget.ListView(this)
+        listView.choiceMode = if (selectedIndex >= 0) android.widget.ListView.CHOICE_MODE_SINGLE else android.widget.ListView.CHOICE_MODE_NONE
+        listView.setBackgroundColor(resources.getColor(R.color.sidebar_background, null))
+        listView.divider = null
+        listView.dividerHeight = 0
+        
+        val adapter = TVDialogAdapter(this, items, selectedIndex)
+        listView.adapter = adapter
+        
+        val dialog = AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
+            .setTitle(title)
+            .setView(listView)
+            .setNegativeButton("Fermer", null)
+            .create()
+        
+        listView.setOnItemClickListener { _, _, position, _ ->
+            android.util.Log.d("PlayerActivity", "Dialog item clicked: $position")
+            dialog.dismiss()
+            onItemSelected(position)
+        }
+        
+        // Also handle key events for D-pad center/enter
+        listView.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN && 
+                (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+                val position = listView.selectedItemPosition
+                if (position >= 0) {
+                    android.util.Log.d("PlayerActivity", "Dialog item selected via key: $position")
+                    dialog.dismiss()
+                    onItemSelected(position)
+                    return@setOnKeyListener true
+                }
+            }
+            false
+        }
+        
+        dialog.show()
+        
+        // Request focus on the list
+        listView.post {
+            listView.requestFocus()
+            if (selectedIndex >= 0) {
+                listView.setSelection(selectedIndex)
+            }
+        }
+    }
+    
+    /**
+     * Custom adapter for TV-friendly dialogs with orange focus
+     */
+    inner class TVDialogAdapter(
+        context: android.content.Context,
+        private val items: List<String>,
+        private val selectedIndex: Int
+    ) : android.widget.ArrayAdapter<String>(context, R.layout.dialog_list_item, items) {
+        
+        override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View {
+            val view = convertView ?: layoutInflater.inflate(R.layout.dialog_list_item, parent, false)
+            
+            val textView = view.findViewById<TextView>(R.id.item_text)
+            val radioIndicator = view.findViewById<android.widget.ImageView>(R.id.radio_indicator)
+            
+            textView.text = items[position]
+            
+            // Show/hide radio indicator based on whether this is a selection dialog
+            if (selectedIndex >= 0) {
+                radioIndicator.visibility = View.VISIBLE
+                if (position == selectedIndex) {
+                    radioIndicator.setImageResource(R.drawable.ic_radio_checked)
+                } else {
+                    radioIndicator.setImageResource(R.drawable.ic_radio_unchecked)
+                }
+            } else {
+                radioIndicator.visibility = View.GONE
+            }
+            
+            return view
+        }
+    }
+    
+    /**
+     * Show episodes selector dialog (Netflix-style with visuals)
      */
     private fun showEpisodesSelector() {
         if (seasons.isEmpty()) {
@@ -297,58 +440,163 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
-        // If only one season, show episodes directly
-        if (seasons.size == 1) {
-            showEpisodesForSeason(seasons[0])
-            return
+        showVisualEpisodesDialog()
+    }
+
+    /**
+     * Show visual episodes dialog with thumbnails
+     */
+    private fun showVisualEpisodesDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_episodes, null)
+        val seasonSelector = dialogView.findViewById<LinearLayout>(R.id.season_selector)
+        val seasonSpinner = dialogView.findViewById<android.widget.Spinner>(R.id.season_spinner)
+        val episodesRecycler = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.episodes_recycler)
+        
+        val dialog = AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
+            .setTitle("📺 Épisodes")
+            .setView(dialogView)
+            .setNegativeButton("Fermer", null)
+            .create()
+        
+        // Current season index
+        var currentSeasonIdx = seasons.indexOfFirst { it.seasonNumber == currentSeasonNumber }.coerceAtLeast(0)
+        
+        // Setup RecyclerView
+        episodesRecycler.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        
+        // Function to update episodes list
+        fun updateEpisodesList(seasonIndex: Int) {
+            val season = seasons[seasonIndex]
+            val adapter = EpisodeDialogAdapter(season.episodes, currentEpisodeId) { episode ->
+                dialog.dismiss()
+                playEpisode(episode, season.seasonNumber)
+            }
+            episodesRecycler.adapter = adapter
+            
+            // Scroll to current episode
+            val currentEpIdx = season.episodes.indexOfFirst { it.id == currentEpisodeId }
+            if (currentEpIdx >= 0) {
+                episodesRecycler.scrollToPosition(currentEpIdx)
+            }
         }
         
-        // Multiple seasons - show season selector first
-        val seasonNames = seasons.map { "Saison ${it.seasonNumber} (${it.episodes.size} épisodes)" }.toTypedArray()
-        
-        // Find current season index
-        val currentIndex = seasons.indexOfFirst { it.seasonNumber == currentSeasonNumber }.coerceAtLeast(0)
-        
-        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
-            .setTitle("📺 Choisir une saison")
-            .setSingleChoiceItems(seasonNames, currentIndex) { dialog, which ->
-                dialog.dismiss()
-                showEpisodesForSeason(seasons[which])
+        // Setup season spinner if multiple seasons
+        if (seasons.size > 1) {
+            seasonSelector.visibility = View.VISIBLE
+            
+            val seasonNames = seasons.map { "Saison ${it.seasonNumber}" }
+            val spinnerAdapter = android.widget.ArrayAdapter(
+                this,
+                android.R.layout.simple_spinner_item,
+                seasonNames
+            ).apply {
+                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             }
-            .setNegativeButton("Annuler", null)
-            .show()
+            seasonSpinner.adapter = spinnerAdapter
+            seasonSpinner.setSelection(currentSeasonIdx)
+            
+            seasonSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    currentSeasonIdx = position
+                    updateEpisodesList(position)
+                }
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            }
+        }
+        
+        // Load initial episodes
+        updateEpisodesList(currentSeasonIdx)
+        
+        dialog.show()
+        
+        // Request focus on the RecyclerView
+        episodesRecycler.post {
+            episodesRecycler.requestFocus()
+        }
     }
     
     /**
-     * Show episodes list for a specific season
+     * Adapter for episode dialog with thumbnails
      */
-    private fun showEpisodesForSeason(season: Season) {
-        val episodes = season.episodes
-        if (episodes.isEmpty()) {
-            Toast.makeText(this, "Aucun épisode dans cette saison", Toast.LENGTH_SHORT).show()
-            return
+    inner class EpisodeDialogAdapter(
+        private val episodes: List<Episode>,
+        private val currentEpisodeId: String?,
+        private val onEpisodeClick: (Episode) -> Unit
+    ) : androidx.recyclerview.widget.RecyclerView.Adapter<EpisodeDialogAdapter.ViewHolder>() {
+        
+        inner class ViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
+            val thumbnail: android.widget.ImageView = view.findViewById(R.id.episode_thumbnail)
+            val playIndicator: android.widget.ImageView = view.findViewById(R.id.play_indicator)
+            val title: TextView = view.findViewById(R.id.episode_title)
+            val info: TextView = view.findViewById(R.id.episode_info)
+            val plot: TextView = view.findViewById(R.id.episode_plot)
         }
         
-        val episodeNames = episodes.map { episode ->
-            val prefix = if (episode.id == currentEpisodeId) "▶ " else "   "
-            "${prefix}E${episode.episodeNumber}: ${episode.name}"
-        }.toTypedArray()
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): ViewHolder {
+            val view = layoutInflater.inflate(R.layout.item_episode_dialog, parent, false)
+            return ViewHolder(view)
+        }
         
-        // Find current episode index
-        val currentIndex = episodes.indexOfFirst { it.id == currentEpisodeId }.coerceAtLeast(0)
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val episode = episodes[position]
+            val isCurrentEpisode = episode.id == currentEpisodeId
+            
+            // Title
+            holder.title.text = "E${episode.episodeNumber}: ${episode.name}"
+            
+            // Info (duration)
+            val durationText = episode.duration
+            if (!durationText.isNullOrEmpty()) {
+                holder.info.text = "$durationText min"
+                holder.info.visibility = View.VISIBLE
+            } else {
+                holder.info.visibility = View.GONE
+            }
+            
+            // Plot
+            if (!episode.plot.isNullOrEmpty()) {
+                holder.plot.text = episode.plot
+                holder.plot.visibility = View.VISIBLE
+            } else {
+                holder.plot.visibility = View.GONE
+            }
+            
+            // Thumbnail (use cover)
+            val imageUrl = episode.cover
+            if (!imageUrl.isNullOrEmpty()) {
+                com.bumptech.glide.Glide.with(holder.itemView.context)
+                    .load(imageUrl as String)
+                    .centerCrop()
+                    .placeholder(R.drawable.placeholder_poster)
+                    .error(R.drawable.placeholder_poster)
+                    .into(holder.thumbnail)
+            } else {
+                holder.thumbnail.setImageResource(R.drawable.placeholder_poster)
+            }
+            
+            // Show play indicator for current episode
+            holder.playIndicator.visibility = if (isCurrentEpisode) View.VISIBLE else View.GONE
+            
+            // Click listener
+            holder.itemView.setOnClickListener {
+                onEpisodeClick(episode)
+            }
+            
+            // Focus handling for TV
+            holder.itemView.isFocusable = true
+            holder.itemView.isFocusableInTouchMode = true
+            
+            holder.itemView.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && 
+                    (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+                    onEpisodeClick(episode)
+                    return@setOnKeyListener true
+                }
+                false
+            }
+        }
         
-        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
-            .setTitle("📺 Saison ${season.seasonNumber} - Épisodes")
-            .setSingleChoiceItems(episodeNames, currentIndex) { dialog, which ->
-                dialog.dismiss()
-                playEpisode(episodes[which], season.seasonNumber)
-            }
-            .setNegativeButton("Annuler", null)
-            .setNeutralButton("↩ Saisons") { dialog, _ ->
-                dialog.dismiss()
-                showEpisodesSelector()
-            }
-            .show()
+        override fun getItemCount() = episodes.size
     }
     
     /**
@@ -494,9 +742,24 @@ class PlayerActivity : AppCompatActivity() {
      * Start monitoring playback position for next episode feature
      */
     private fun startPositionMonitoring() {
-        if (type != "SERIES" || nextEpisode == null) {
+        android.util.Log.d("PlayerActivity", "startPositionMonitoring - type: $type, nextEpisode: ${nextEpisode?.name}")
+        
+        if (type != "SERIES") {
+            android.util.Log.d("PlayerActivity", "Not a series, skipping position monitoring")
             return
         }
+        
+        // Find next episode if not already done
+        if (nextEpisode == null) {
+            findNextEpisode()
+        }
+        
+        if (nextEpisode == null) {
+            android.util.Log.d("PlayerActivity", "No next episode available, skipping monitoring")
+            return
+        }
+        
+        android.util.Log.d("PlayerActivity", "Starting position monitoring for next episode: ${nextEpisode?.name}")
         
         positionCheckRunnable = object : Runnable {
             override fun run() {
@@ -529,8 +792,14 @@ class PlayerActivity : AppCompatActivity() {
         
         val remainingTime = duration - position
         
+        // Log every 5 seconds for debugging
+        if (position % 5000 < 1000) {
+            android.util.Log.d("PlayerActivity", "Position check - remaining: ${remainingTime/1000}s, threshold: ${NEXT_EPISODE_THRESHOLD_MS/1000}s")
+        }
+        
         // Show next episode button when less than threshold remaining
         if (remainingTime in 1..NEXT_EPISODE_THRESHOLD_MS) {
+            android.util.Log.d("PlayerActivity", "TRIGGERING next episode button! Remaining: ${remainingTime}ms")
             showNextEpisodeButton()
         }
     }
@@ -542,7 +811,7 @@ class PlayerActivity : AppCompatActivity() {
         if (isNextEpisodeShowing || nextEpisode == null) return
         
         isNextEpisodeShowing = true
-        countdownSeconds = 5
+        countdownSeconds = 10 // 10 seconds countdown
         
         // Update UI
         runOnUiThread {
@@ -597,8 +866,8 @@ class PlayerActivity : AppCompatActivity() {
                 
                 runOnUiThread {
                     countdownText?.text = countdownSeconds.toString()
-                    // Animate progress (from 100 to 0 over 5 seconds)
-                    val progress = (countdownSeconds * 20) // 5->100, 4->80, 3->60, 2->40, 1->20, 0->0
+                    // Animate progress (from 100 to 0 over 10 seconds)
+                    val progress = (countdownSeconds * 10) // 10->100, 9->90, ... 1->10, 0->0
                     countdownProgress?.progress = progress
                 }
                 
@@ -1006,16 +1275,11 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
-        val trackNames = audioTracks.map { it.label }.toTypedArray()
+        val trackNames = audioTracks.map { it.label }
         
-        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
-            .setTitle("🔊 Piste Audio")
-            .setSingleChoiceItems(trackNames, selectedAudioIndex) { dialog, which ->
-                selectAudioTrack(which)
-                dialog.dismiss()
-            }
-            .setNegativeButton("Annuler", null)
-            .show()
+        showTVFriendlyDialog("🔊 Piste Audio", trackNames, selectedAudioIndex) { which ->
+            selectAudioTrack(which)
+        }
     }
     
     private fun selectAudioTrack(index: Int) {
@@ -1053,18 +1317,13 @@ class PlayerActivity : AppCompatActivity() {
         
         val currentSelection = if (selectedSubtitleIndex < 0) 0 else selectedSubtitleIndex + 1
         
-        AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
-            .setTitle("📝 Sous-titres")
-            .setSingleChoiceItems(trackNames.toTypedArray(), currentSelection) { dialog, which ->
-                if (which == 0) {
-                    disableSubtitles()
-                } else {
-                    selectSubtitleTrack(which - 1)
-                }
-                dialog.dismiss()
+        showTVFriendlyDialog("📝 Sous-titres", trackNames, currentSelection) { which ->
+            if (which == 0) {
+                disableSubtitles()
+            } else {
+                selectSubtitleTrack(which - 1)
             }
-            .setNegativeButton("Annuler", null)
-            .show()
+        }
     }
     
     private fun selectSubtitleTrack(index: Int) {

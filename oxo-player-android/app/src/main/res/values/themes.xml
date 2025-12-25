@@ -31,6 +31,8 @@
         <item name="android:textColorSecondary">@color/light_gray</item>
         <item name="colorAccent">@color/primary</item>
         <item name="android:windowTitleStyle">@style/DialogTitleStyle</item>
+        <item name="android:listChoiceIndicatorSingle">@drawable/dialog_radio_button</item>
+        <item name="android:listSelector">@drawable/dialog_list_selector</item>
     </style>
     
     <style name="DialogTitleStyle" parent="TextAppearance.AppCompat.Title">

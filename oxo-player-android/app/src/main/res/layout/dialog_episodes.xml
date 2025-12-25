@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/sidebar_background"
+    android:padding="16dp">
+
+    <!-- Season selector -->
+    <LinearLayout
+        android:id="@+id/season_selector"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Saison:"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:layout_marginEnd="12dp" />
+
+        <Spinner
+            android:id="@+id/season_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:background="@drawable/spinner_background"
+            android:popupBackground="@color/sidebar_background"
+            android:focusable="true" />
+
+    </LinearLayout>
+
+    <!-- Episodes list -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/episodes_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="400dp"
+        android:clipToPadding="false" />
+
+</LinearLayout>
+

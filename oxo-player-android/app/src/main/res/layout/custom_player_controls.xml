@@ -161,13 +161,16 @@
             <LinearLayout
                 android:id="@+id/btn_info_container"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:layout_weight="1"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:padding="8dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:focusable="true">
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:background="@drawable/btn_player_option_bg"
+                android:focusable="true"
+                android:clickable="true"
+                android:layout_marginEnd="8dp">
 
                 <ImageView
                     android:layout_width="24dp"
@@ -188,13 +191,16 @@
             <LinearLayout
                 android:id="@+id/btn_episodes_container"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:layout_weight="1"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:padding="8dp"
-                android:background="?android:attr/selectableItemBackground"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:background="@drawable/btn_player_option_bg"
                 android:focusable="true"
+                android:clickable="true"
+                android:layout_marginEnd="8dp"
                 android:visibility="gone">
 
                 <ImageView
@@ -216,13 +222,15 @@
             <LinearLayout
                 android:id="@+id/btn_audio_subtitles_container"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:layout_weight="1"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:padding="8dp"
-                android:background="?android:attr/selectableItemBackground"
-                android:focusable="true">
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:background="@drawable/btn_player_option_bg"
+                android:focusable="true"
+                android:clickable="true">
 
                 <ImageView
                     android:layout_width="24dp"
