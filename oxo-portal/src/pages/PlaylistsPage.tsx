@@ -30,6 +30,40 @@ export default function PlaylistsPage() {
   }>({ show: false, playlist: null, pin: '' });
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Edit modal state
+  const [editModal, setEditModal] = useState<{
+    show: boolean;
+    playlist: Playlist | null;
+    pinVerified: boolean; // For protected playlists - must verify PIN first
+    name: string;
+    url: string;
+    host: string;
+    username: string;
+    password: string;
+    epgUrl: string;
+    unlockPin: string;
+    // For adding protection to unprotected playlist
+    enableProtection: boolean;
+    newPin: string;
+    confirmNewPin: string;
+  }>({ 
+    show: false, 
+    playlist: null, 
+    pinVerified: false,
+    name: '', 
+    url: '', 
+    host: '', 
+    username: '', 
+    password: '', 
+    epgUrl: '', 
+    unlockPin: '',
+    enableProtection: false,
+    newPin: '',
+    confirmNewPin: ''
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
   useEffect(() => {
     loadDevice();
   }, []);
@@ -75,6 +109,138 @@ export default function PlaylistsPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const openEditModal = (playlist: Playlist) => {
+    setEditModal({
+      show: true,
+      playlist,
+      pinVerified: !playlist.is_protected, // If not protected, already "verified"
+      name: playlist.name,
+      url: playlist.url || '',
+      host: '',
+      username: playlist.username || '',
+      password: playlist.password || '',
+      epgUrl: playlist.epg_url || '',
+      unlockPin: '',
+      enableProtection: false,
+      newPin: '',
+      confirmNewPin: ''
+    });
+    setError('');
+  };
+
+  const verifyEditPin = async () => {
+    if (!editModal.playlist || !macAddress || !deviceKey) return;
+    
+    setIsVerifyingPin(true);
+    setError('');
+    
+    try {
+      // Try to unlock the playlist with the PIN - this returns full playlist data
+      const unlockedData = await portalApi.unlockPlaylist(
+        editModal.playlist.id,
+        macAddress,
+        deviceKey,
+        editModal.unlockPin
+      );
+      
+      // PIN verified - populate form with the unlocked data
+      setEditModal({ 
+        ...editModal, 
+        pinVerified: true,
+        name: unlockedData.name || editModal.name,
+        url: unlockedData.playlist_url || '',
+        host: unlockedData.xtream_host || '',
+        username: unlockedData.xtream_username || '',
+        password: unlockedData.xtream_password || '',
+        epgUrl: unlockedData.epg_url || ''
+      });
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'PIN incorrect');
+    } finally {
+      setIsVerifyingPin(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editModal.playlist || !macAddress || !deviceKey) return;
+    
+    // Validate new PIN if enabling protection
+    if (editModal.enableProtection) {
+      if (!editModal.newPin || editModal.newPin.length < 4) {
+        setError('Le PIN doit contenir au moins 4 caractères');
+        return;
+      }
+      if (editModal.newPin !== editModal.confirmNewPin) {
+        setError('Les PINs ne correspondent pas');
+        return;
+      }
+    }
+    
+    setIsEditing(true);
+    setError('');
+    
+    try {
+      const updateData: any = {
+        name: editModal.name,
+      };
+
+      if (editModal.playlist.playlist_type === 'xtream') {
+        if (editModal.host) updateData.host = editModal.host;
+        if (editModal.username) updateData.username = editModal.username;
+        if (editModal.password) updateData.password = editModal.password;
+      } else {
+        if (editModal.url) updateData.playlist_url = editModal.url;
+      }
+
+      if (editModal.epgUrl) updateData.epg_url = editModal.epgUrl;
+      
+      // If playlist is protected, include unlock PIN
+      if (editModal.playlist.is_protected && editModal.unlockPin) {
+        updateData.unlock_pin = editModal.unlockPin;
+      }
+      
+      // If enabling protection on unprotected playlist
+      if (editModal.enableProtection && editModal.newPin) {
+        updateData.is_protected = true;
+        updateData.pin = editModal.newPin;
+      }
+
+      await portalApi.updatePlaylist(
+        editModal.playlist.id,
+        macAddress,
+        deviceKey,
+        updateData
+      );
+      
+      // Refresh playlists
+      await loadDevice();
+      closeEditModal();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur de modification');
+    } finally {
+      setIsEditing(false);
+    }
+  };
+  
+  const closeEditModal = () => {
+    setEditModal({ 
+      show: false, 
+      playlist: null, 
+      pinVerified: false,
+      name: '', 
+      url: '', 
+      host: '', 
+      username: '', 
+      password: '', 
+      epgUrl: '', 
+      unlockPin: '',
+      enableProtection: false,
+      newPin: '',
+      confirmNewPin: ''
+    });
+    setError('');
   };
 
   const handleLogout = () => {
@@ -225,9 +391,7 @@ export default function PlaylistsPage() {
                         <div className="flex items-center justify-end gap-2">
                           {/* Edit button */}
                           <button
-                            onClick={() => {
-                              // TODO: Implement edit
-                            }}
+                            onClick={() => openEditModal(playlist)}
                             className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
                             title="Modifier"
                           >
@@ -336,6 +500,257 @@ export default function PlaylistsPage() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editModal.show && editModal.playlist && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full animate-fadeIn max-h-[90vh] overflow-y-auto">
+            
+            {/* Step 1: PIN verification for protected playlists */}
+            {editModal.playlist.is_protected && !editModal.pinVerified ? (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <Lock className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      Playlist protégée
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Entrez le PIN pour modifier "{editModal.playlist.name}"
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    PIN de protection
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Entrez le PIN"
+                    value={editModal.unlockPin}
+                    onChange={(e) => setEditModal({ ...editModal, unlockPin: e.target.value })}
+                    className="!bg-gray-50 !text-gray-900 text-center text-xl tracking-widest"
+                    maxLength={10}
+                    autoFocus
+                  />
+                </div>
+
+                {error && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeEditModal}
+                    className="btn btn-secondary flex-1 !text-gray-700"
+                    disabled={isVerifyingPin}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={verifyEditPin}
+                    className="btn btn-primary flex-1"
+                    disabled={isVerifyingPin || !editModal.unlockPin}
+                  >
+                    {isVerifyingPin ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      'Vérifier'
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* Step 2: Edit form (after PIN verification or for unprotected playlists) */
+              <>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                  Modifier la playlist
+                </h3>
+
+                <div className="space-y-4">
+                  {/* Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nom de la playlist
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ma playlist"
+                      value={editModal.name}
+                      onChange={(e) => setEditModal({ ...editModal, name: e.target.value })}
+                      className="!bg-gray-50 !text-gray-900"
+                    />
+                  </div>
+
+                  {editModal.playlist.playlist_type === 'xtream' ? (
+                    <>
+                      {/* Host */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Serveur (Host)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="http://example.com:8080"
+                          value={editModal.host}
+                          onChange={(e) => setEditModal({ ...editModal, host: e.target.value })}
+                          className="!bg-gray-50 !text-gray-900 font-mono text-sm"
+                        />
+                      </div>
+
+                      {/* Username */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Nom d'utilisateur
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="username"
+                          value={editModal.username}
+                          onChange={(e) => setEditModal({ ...editModal, username: e.target.value })}
+                          className="!bg-gray-50 !text-gray-900"
+                        />
+                      </div>
+
+                      {/* Password */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Mot de passe
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="password"
+                          value={editModal.password}
+                          onChange={(e) => setEditModal({ ...editModal, password: e.target.value })}
+                          className="!bg-gray-50 !text-gray-900"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* M3U URL */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          URL de la playlist
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="http://example.com/playlist.m3u"
+                          value={editModal.url}
+                          onChange={(e) => setEditModal({ ...editModal, url: e.target.value })}
+                          className="!bg-gray-50 !text-gray-900 font-mono text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* EPG URL */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      URL EPG (optionnel)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="http://example.com/epg.xml"
+                      value={editModal.epgUrl}
+                      onChange={(e) => setEditModal({ ...editModal, epgUrl: e.target.value })}
+                      className="!bg-gray-50 !text-gray-900 font-mono text-sm"
+                    />
+                  </div>
+
+                  {/* Add protection option (only for unprotected playlists) */}
+                  {!editModal.playlist.is_protected && (
+                    <div className="border-t border-gray-200 pt-4 mt-4">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editModal.enableProtection}
+                          onChange={(e) => setEditModal({ 
+                            ...editModal, 
+                            enableProtection: e.target.checked,
+                            newPin: '',
+                            confirmNewPin: ''
+                          })}
+                          className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">
+                            Protéger cette playlist avec un PIN
+                          </span>
+                        </div>
+                      </label>
+
+                      {editModal.enableProtection && (
+                        <div className="mt-4 space-y-3 pl-8">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Nouveau PIN
+                            </label>
+                            <input
+                              type="password"
+                              placeholder="Minimum 4 caractères"
+                              value={editModal.newPin}
+                              onChange={(e) => setEditModal({ ...editModal, newPin: e.target.value })}
+                              className="!bg-gray-50 !text-gray-900"
+                              maxLength={10}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Confirmer le PIN
+                            </label>
+                            <input
+                              type="password"
+                              placeholder="Répétez le PIN"
+                              value={editModal.confirmNewPin}
+                              onChange={(e) => setEditModal({ ...editModal, confirmNewPin: e.target.value })}
+                              className="!bg-gray-50 !text-gray-900"
+                              maxLength={10}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {error && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={closeEditModal}
+                    className="btn btn-secondary flex-1 !text-gray-700"
+                    disabled={isEditing}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleEdit}
+                    className="btn btn-primary flex-1"
+                    disabled={isEditing || !editModal.name || (editModal.enableProtection && (!editModal.newPin || editModal.newPin !== editModal.confirmNewPin))}
+                  >
+                    {isEditing ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      'Enregistrer'
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

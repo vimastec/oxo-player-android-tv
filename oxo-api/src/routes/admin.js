@@ -194,7 +194,90 @@ router.get('/transactions', (req, res) => {
   res.json(transactions);
 });
 
+// =====================================================
+// SELLER CONTACTS (Public reseller list for portal)
+// =====================================================
+
+// List all seller contacts
+router.get('/seller-contacts', (req, res) => {
+  const sellers = db.prepare(`
+    SELECT * FROM seller_contacts
+    ORDER BY city ASC, name ASC
+  `).all();
+
+  res.json(sellers);
+});
+
+// Add seller contact
+router.post('/seller-contacts', (req, res) => {
+  const { name, city, phone, email, address } = req.body;
+
+  if (!name || !city || !phone) {
+    return res.status(400).json({ error: 'Nom, ville et téléphone sont requis' });
+  }
+
+  try {
+    const result = db.prepare(`
+      INSERT INTO seller_contacts (name, city, phone, email, address)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(name, city, phone, email || null, address || null);
+
+    const seller = db.prepare('SELECT * FROM seller_contacts WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(seller);
+  } catch (error) {
+    console.error('Error adding seller contact:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'ajout' });
+  }
+});
+
+// Update seller contact
+router.put('/seller-contacts/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, city, phone, email, address, is_active } = req.body;
+
+  const seller = db.prepare('SELECT * FROM seller_contacts WHERE id = ?').get(id);
+  if (!seller) {
+    return res.status(404).json({ error: 'Revendeur non trouvé' });
+  }
+
+  try {
+    db.prepare(`
+      UPDATE seller_contacts 
+      SET name = ?, city = ?, phone = ?, email = ?, address = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      name || seller.name,
+      city || seller.city,
+      phone || seller.phone,
+      email !== undefined ? email : seller.email,
+      address !== undefined ? address : seller.address,
+      is_active !== undefined ? (is_active ? 1 : 0) : seller.is_active,
+      id
+    );
+
+    const updated = db.prepare('SELECT * FROM seller_contacts WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating seller contact:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour' });
+  }
+});
+
+// Delete seller contact
+router.delete('/seller-contacts/:id', (req, res) => {
+  const { id } = req.params;
+
+  const seller = db.prepare('SELECT * FROM seller_contacts WHERE id = ?').get(id);
+  if (!seller) {
+    return res.status(404).json({ error: 'Revendeur non trouvé' });
+  }
+
+  db.prepare('DELETE FROM seller_contacts WHERE id = ?').run(id);
+  res.json({ success: true, message: 'Revendeur supprimé' });
+});
+
 module.exports = router;
+
 
 
 

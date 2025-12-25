@@ -61,6 +61,14 @@ export const adminApi = {
   
   // Transactions
   getTransactions: () => api.get('/admin/transactions'),
+  
+  // Seller Contacts (public reseller list)
+  getSellerContacts: () => api.get('/admin/seller-contacts'),
+  createSellerContact: (data: { name: string; city: string; phone: string; email?: string; address?: string }) =>
+    api.post('/admin/seller-contacts', data),
+  updateSellerContact: (id: number, data: { name?: string; city?: string; phone?: string; email?: string; address?: string; is_active?: boolean }) =>
+    api.put(`/admin/seller-contacts/${id}`, data),
+  deleteSellerContact: (id: number) => api.delete(`/admin/seller-contacts/${id}`),
 };
 
 // Reseller

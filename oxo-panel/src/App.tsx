@@ -8,6 +8,7 @@ import { AdminDashboardPage } from './pages/admin/DashboardPage';
 import { ResellersPage } from './pages/admin/ResellersPage';
 import { AdminDevicesPage } from './pages/admin/DevicesPage';
 import { AdminTransactionsPage } from './pages/admin/TransactionsPage';
+import { SellerContactsPage } from './pages/admin/SellerContactsPage';
 
 // Reseller pages
 import { ResellerDashboardPage } from './pages/reseller/DashboardPage';
@@ -83,6 +84,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminTransactionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/seller-contacts"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <SellerContactsPage />
             </ProtectedRoute>
           }
         />

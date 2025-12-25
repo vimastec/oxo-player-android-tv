@@ -115,3 +115,4 @@ export function CategoryBar({ categories, selectedCategory, onSelectCategory }: 
 
 
 
+

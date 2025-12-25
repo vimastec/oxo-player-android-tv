@@ -1,20 +1,59 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Loader2, AlertCircle } from 'lucide-react';
+import { RefreshCw, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { portalApi, Captcha } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+
+// Helper function to get URL params (outside component to avoid re-creation)
+function getInitialUrlParams() {
+  if (typeof window === 'undefined') return { mac: '', key: '', hasParams: false };
+  
+  const urlParams = new URLSearchParams(window.location.search);
+  const macFromUrl = urlParams.get('mac');
+  const keyFromUrl = urlParams.get('key');
+  
+  let mac = '';
+  let key = '';
+  
+  if (macFromUrl) {
+    const decodedMac = decodeURIComponent(macFromUrl);
+    const hex = decodedMac.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    const formatted = hex.match(/.{1,2}/g)?.join(':') || hex;
+    mac = formatted.slice(0, 17);
+  }
+  
+  if (keyFromUrl) {
+    key = keyFromUrl.replace(/\D/g, '').slice(0, 6);
+  }
+  
+  return { mac, key, hasParams: !!(macFromUrl || keyFromUrl) };
+}
+
+// Get initial values from URL
+const initialParams = getInitialUrlParams();
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuthStore();
   
-  const [macAddress, setMacAddress] = useState('');
-  const [deviceKey, setDeviceKey] = useState('');
+  // Initialize state directly from URL parameters
+  const [macAddress, setMacAddress] = useState(initialParams.mac);
+  const [deviceKey, setDeviceKey] = useState(initialParams.key);
   const [captchaCode, setCaptchaCode] = useState('');
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingCaptcha, setIsLoadingCaptcha] = useState(false);
   const [error, setError] = useState('');
+  const [prefilledFromQR] = useState(initialParams.hasParams);
+
+  // Format MAC address helper function
+  const formatMacAddress = (value: string) => {
+    // Remove all non-hex characters
+    const hex = value.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+    // Add colons every 2 characters
+    const formatted = hex.match(/.{1,2}/g)?.join(':') || hex;
+    return formatted.slice(0, 17); // Max length XX:XX:XX:XX:XX:XX
+  };
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -39,14 +78,6 @@ export default function LoginPage() {
     } finally {
       setIsLoadingCaptcha(false);
     }
-  };
-
-  const formatMacAddress = (value: string) => {
-    // Remove all non-hex characters
-    const hex = value.replace(/[^a-fA-F0-9]/g, '').toUpperCase();
-    // Add colons every 2 characters
-    const formatted = hex.match(/.{1,2}/g)?.join(':') || hex;
-    return formatted.slice(0, 17); // Max length XX:XX:XX:XX:XX:XX
   };
 
   const handleMacChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,18 +154,29 @@ export default function LoginPage() {
 
         {/* Login card */}
         <div className="card animate-fadeIn">
+          {/* QR Code prefill notification */}
+          {prefilledFromQR && (
+            <div className="flex items-center gap-2 p-3 mb-4 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              Informations pré-remplies depuis le QR code. Entrez le captcha pour continuer.
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* MAC Address */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Mac Address <span className="text-primary">*</span>
+                {prefilledFromQR && macAddress && (
+                  <span className="ml-2 text-xs text-green-400">✓ Auto-rempli</span>
+                )}
               </label>
               <input
                 type="text"
                 placeholder="XX:XX:XX:XX:XX:XX"
                 value={macAddress}
                 onChange={handleMacChange}
-                className="font-mono tracking-wider"
+                className={`font-mono tracking-wider ${prefilledFromQR && macAddress ? 'border-green-500/50' : ''}`}
                 maxLength={17}
                 autoComplete="off"
               />
@@ -144,6 +186,9 @@ export default function LoginPage() {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Device Key <span className="text-primary">*</span>
+                {prefilledFromQR && deviceKey && (
+                  <span className="ml-2 text-xs text-green-400">✓ Auto-rempli</span>
+                )}
               </label>
               <input
                 type="text"
@@ -155,7 +200,7 @@ export default function LoginPage() {
                   setDeviceKey(digits);
                   setError('');
                 }}
-                className="font-mono tracking-widest text-center text-2xl"
+                className={`font-mono tracking-widest text-center text-2xl ${prefilledFromQR && deviceKey ? 'border-green-500/50' : ''}`}
                 maxLength={6}
                 autoComplete="off"
               />
@@ -232,6 +277,19 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+        </div>
+
+        {/* Buy activation link */}
+        <div className="text-center mt-6">
+          <p className="text-gray-500 text-sm mb-2">
+            Vous n'avez pas encore OXO Player ?
+          </p>
+          <button
+            onClick={() => navigate('/sellers')}
+            className="text-primary hover:text-primary-hover transition-colors font-medium"
+          >
+            🛒 Voir les points de vente
+          </button>
         </div>
 
         {/* Footer */}

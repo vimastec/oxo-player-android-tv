@@ -74,6 +74,19 @@ function init() {
       FOREIGN KEY (reseller_id) REFERENCES resellers(id),
       FOREIGN KEY (admin_id) REFERENCES admins(id)
     );
+
+    -- Seller contacts table (public list of approved resellers for portal)
+    CREATE TABLE IF NOT EXISTS seller_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      city TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      email TEXT,
+      address TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Create default admin if not exists

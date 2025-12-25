@@ -176,7 +176,22 @@ export const portalApi = {
     });
     return response.data;
   },
+
+  // Get list of approved sellers (public)
+  getSellers: async (): Promise<SellerContact[]> => {
+    const response = await api.get('/portal/sellers');
+    return response.data;
+  },
 };
+
+export interface SellerContact {
+  id: number;
+  name: string;
+  city: string;
+  phone: string;
+  email: string | null;
+  address: string | null;
+}
 
 export default api;
 

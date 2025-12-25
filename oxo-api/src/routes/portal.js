@@ -454,6 +454,21 @@ router.post('/playlists/:id/unlock', (req, res) => {
   });
 });
 
+/**
+ * Get list of approved sellers (public)
+ * GET /api/portal/sellers
+ */
+router.get('/sellers', (req, res) => {
+  const sellers = db.prepare(`
+    SELECT id, name, city, phone, email, address
+    FROM seller_contacts
+    WHERE is_active = 1
+    ORDER BY city ASC, name ASC
+  `).all();
+
+  res.json(sellers);
+});
+
 // Helper functions
 function generateCaptchaId() {
   return Math.random().toString(36).substring(2, 15);

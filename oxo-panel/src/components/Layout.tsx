@@ -8,6 +8,7 @@ import {
   Menu,
   X,
   CreditCard,
+  Store,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
@@ -30,6 +31,7 @@ export function Layout({ children }: LayoutProps) {
         { path: '/admin/resellers', icon: Users, label: 'Revendeurs' },
         { path: '/admin/devices', icon: Tv, label: 'Appareils' },
         { path: '/admin/transactions', icon: History, label: 'Transactions' },
+        { path: '/admin/seller-contacts', icon: Store, label: 'Points de vente' },
       ]
     : [
         { path: '/reseller', icon: LayoutDashboard, label: 'Dashboard' },

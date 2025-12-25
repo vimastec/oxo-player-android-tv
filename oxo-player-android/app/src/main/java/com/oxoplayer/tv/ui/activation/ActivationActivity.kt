@@ -20,6 +20,7 @@ import com.oxoplayer.tv.ui.main.MainActivity
 import com.oxoplayer.tv.ui.profile.ProfileSelectionActivity
 import com.oxoplayer.tv.data.ProfileManager
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 
 class ActivationActivity : AppCompatActivity() {
     
@@ -75,8 +76,25 @@ class ActivationActivity : AppCompatActivity() {
             startActivity(Intent(this, com.oxoplayer.tv.ui.settings.SettingsActivity::class.java))
         }
         
-        // Generate QR Code for portal URL
-        generateQRCode(PORTAL_URL)
+        // QR Code will be generated after device registration with MAC and device key
+    }
+    
+    /**
+     * Generate QR Code for portal with MAC address and device key pre-filled
+     */
+    private fun generatePortalQRCode(macAddress: String, deviceKey: String) {
+        try {
+            // URL encode the MAC address (contains colons)
+            val encodedMac = URLEncoder.encode(macAddress, "UTF-8")
+            val portalUrl = "$PORTAL_URL?mac=$encodedMac&key=$deviceKey"
+            
+            android.util.Log.d("ActivationActivity", "Generating QR code for: $portalUrl")
+            generateQRCode(portalUrl)
+        } catch (e: Exception) {
+            android.util.Log.e("ActivationActivity", "Error generating portal QR code", e)
+            // Fallback to basic URL
+            generateQRCode(PORTAL_URL)
+        }
     }
     
     /**
@@ -120,10 +138,13 @@ class ActivationActivity : AppCompatActivity() {
                 preferencesManager.daysRemaining = registration.daysRemaining
                 preferencesManager.hasPlaylist = registration.hasPlaylist
                 
-                // Display Device Key
+                // Display Device Key and generate QR code with MAC + device key
                 registration.deviceKey?.let { key ->
                     deviceKeyText.text = "Device Key: $key"
                     preferencesManager.deviceKey = key
+                    
+                    // Generate QR Code with pre-filled MAC and device key
+                    generatePortalQRCode(macAddress, key)
                 }
                 
                 when (registration.status) {

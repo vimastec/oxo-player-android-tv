@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import PlaylistsPage from './pages/PlaylistsPage';
 import AddPlaylistPage from './pages/AddPlaylistPage';
 import AddXtreamPage from './pages/AddXtreamPage';
+import SellersPage from './pages/SellersPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -15,6 +16,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/sellers" element={<SellersPage />} />
         <Route
           path="/playlists"
           element={
@@ -46,4 +48,5 @@ function App() {
 }
 
 export default App;
+
 
