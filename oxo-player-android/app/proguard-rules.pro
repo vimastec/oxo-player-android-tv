@@ -14,9 +14,11 @@
 -dontwarn retrofit2.KotlinExtensions
 -dontwarn retrofit2.KotlinExtensions$*
 
-# Keep Gson
+# Keep Gson - CRITICAL for JSON parsing
 -keepattributes Signature
 -keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
 -dontwarn sun.misc.**
 -keep class com.google.gson.** { *; }
 -keep class * implements com.google.gson.TypeAdapter
@@ -27,8 +29,24 @@
   @com.google.gson.annotations.SerializedName <fields>;
 }
 
-# Keep data models
+# Keep TypeToken for Gson (fixes ParameterizedType error)
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+
+# Keep data models - ALL fields and methods
 -keep class com.oxoplayer.tv.data.models.** { *; }
+-keepclassmembers class com.oxoplayer.tv.data.models.** { *; }
+
+# Keep repository classes
+-keep class com.oxoplayer.tv.data.repository.** { *; }
+-keepclassmembers class com.oxoplayer.tv.data.repository.** { *; }
+
+# Keep API service
+-keep class com.oxoplayer.tv.data.api.** { *; }
+-keepclassmembers class com.oxoplayer.tv.data.api.** { *; }
+
+# Keep preferences
+-keep class com.oxoplayer.tv.data.preferences.** { *; }
 
 # ExoPlayer
 -keep class androidx.media3.** { *; }
