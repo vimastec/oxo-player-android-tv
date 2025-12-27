@@ -93,6 +93,7 @@ async function init() {
         name TEXT NOT NULL,
         credits INTEGER DEFAULT 0,
         status TEXT DEFAULT 'active',
+        allow_cross_reseller_activation BOOLEAN DEFAULT FALSE,
         created_by INTEGER REFERENCES admins(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -170,6 +171,17 @@ async function init() {
     `;
     
     await db.exec(schema);
+
+    // Ensure new columns exist on already-created tables (PostgreSQL)
+    // NOTE: CREATE TABLE IF NOT EXISTS won't add new columns to existing tables.
+    try {
+      await pool.query(`
+        ALTER TABLE resellers
+        ADD COLUMN IF NOT EXISTS allow_cross_reseller_activation BOOLEAN DEFAULT FALSE
+      `);
+    } catch (err) {
+      console.error('❌ Failed to ensure resellers.allow_cross_reseller_activation:', err.message);
+    }
   } else {
     // SQLite schema
     db.exec(`
@@ -188,6 +200,7 @@ async function init() {
         name TEXT NOT NULL,
         credits INTEGER DEFAULT 0,
         status TEXT DEFAULT 'active',
+        allow_cross_reseller_activation INTEGER DEFAULT 0,
         created_by INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (created_by) REFERENCES admins(id)
@@ -268,6 +281,17 @@ async function init() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Ensure new columns exist on already-created tables (SQLite)
+    try {
+      const resellerColumns = db.prepare("PRAGMA table_info(resellers)").all();
+      const hasFlag = resellerColumns.some((c) => c.name === 'allow_cross_reseller_activation');
+      if (!hasFlag) {
+        db.prepare('ALTER TABLE resellers ADD COLUMN allow_cross_reseller_activation INTEGER DEFAULT 0').run();
+      }
+    } catch (err) {
+      console.error('❌ Failed to ensure resellers.allow_cross_reseller_activation (SQLite):', err.message);
+    }
   }
 
   // Create default admin

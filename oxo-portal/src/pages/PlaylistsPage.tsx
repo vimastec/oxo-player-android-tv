@@ -8,14 +8,17 @@ import {
   Loader2,
   Lock,
   AlertCircle,
-  MessageSquare
+  MessageSquare,
+  ShoppingCart,
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 import { portalApi, Playlist, DeviceInfo } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
 export default function PlaylistsPage() {
   const navigate = useNavigate();
-  const { macAddress, deviceKey, logout } = useAuthStore();
+  const { macAddress, deviceKey, status, expirationDate, logout } = useAuthStore();
   
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -268,6 +271,57 @@ export default function PlaylistsPage() {
         <div className="bg-white rounded-t-2xl px-6 py-4">
           <h1 className="text-xl font-semibold text-gray-900">Manage Playlists</h1>
         </div>
+
+        {/* Activation Banner - Show for trial or expired status */}
+        {(status === 'trial' || status === 'expired') && (
+          <div className={`mx-0 my-4 p-5 rounded-xl border-2 ${
+            status === 'expired' 
+              ? 'bg-red-500/10 border-red-500/50' 
+              : 'bg-yellow-500/10 border-yellow-500/50'
+          }`}>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  status === 'expired' ? 'bg-red-500/20' : 'bg-yellow-500/20'
+                }`}>
+                  {status === 'expired' ? (
+                    <AlertTriangle className="w-6 h-6 text-red-500" />
+                  ) : (
+                    <Clock className="w-6 h-6 text-yellow-500" />
+                  )}
+                </div>
+                <div>
+                  <h3 className={`font-bold text-lg ${
+                    status === 'expired' ? 'text-red-400' : 'text-yellow-400'
+                  }`}>
+                    {status === 'expired' ? '⚠️ Abonnement expiré' : '⏳ Période d\'essai'}
+                  </h3>
+                  <p className="text-gray-300 text-sm mt-1">
+                    {status === 'expired' 
+                      ? 'Votre abonnement a expiré. Activez votre MAC pour continuer à utiliser OXO Player.'
+                      : `Vous êtes en période d'essai${expirationDate ? ` jusqu'au ${new Date(expirationDate).toLocaleDateString('fr-FR')}` : ''}. Activez votre MAC pour un accès complet.`
+                    }
+                  </p>
+                  <p className="text-gray-400 text-xs mt-2 font-mono">
+                    MAC: {macAddress}
+                  </p>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => navigate('/sellers')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
+                  status === 'expired'
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                }`}
+              >
+                <ShoppingCart className="w-5 h-5" />
+                Acheter une activation
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Main content card */}
         <div className="bg-gray-50 rounded-b-2xl p-6 animate-fadeIn">

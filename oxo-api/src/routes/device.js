@@ -9,7 +9,7 @@ const router = express.Router();
 const TRIAL_DAYS = parseInt(process.env.TRIAL_DAYS) || 7;
 
 // Register/Check device (called by OXO Player app)
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { mac_address, device_info } = req.body;
 
   if (!mac_address) {
@@ -26,7 +26,7 @@ router.post('/register', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Check if device exists
-  let device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  let device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   const now = new Date();
 
@@ -36,33 +36,33 @@ router.post('/register', (req, res) => {
     trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
     const deviceKey = generateDeviceKey();
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO devices (mac_address, device_key, status, trial_start, expiration_date, device_info, last_seen)
       VALUES (?, ?, 'trial', ?, ?, ?, ?)
     `).run(formattedMac, deviceKey, now.toISOString(), trialEnd.toISOString(), device_info || null, now.toISOString());
 
-    device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+    device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
   } else if (!device.device_key) {
     // Generate device_key for existing devices without one
     const deviceKey = generateDeviceKey();
-    db.prepare('UPDATE devices SET device_key = ? WHERE mac_address = ?').run(deviceKey, formattedMac);
+    await db.prepare('UPDATE devices SET device_key = ? WHERE mac_address = ?').run(deviceKey, formattedMac);
     device.device_key = deviceKey;
   } else {
     // Update last seen
-    db.prepare('UPDATE devices SET last_seen = ?, device_info = ? WHERE mac_address = ?')
+    await db.prepare('UPDATE devices SET last_seen = ?, device_info = ? WHERE mac_address = ?')
       .run(now.toISOString(), device_info || device.device_info, formattedMac);
 
     // Check if expired
     if (device.expiration_date) {
       const expirationDate = new Date(device.expiration_date);
       if (now > expirationDate && device.status !== 'expired') {
-        db.prepare("UPDATE devices SET status = 'expired' WHERE mac_address = ?").run(formattedMac);
+        await db.prepare("UPDATE devices SET status = 'expired' WHERE mac_address = ?").run(formattedMac);
         device.status = 'expired';
       }
     }
 
     // Refresh device data
-    device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+    device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
   }
 
   // Calculate days remaining
@@ -75,15 +75,15 @@ router.post('/register', (req, res) => {
   }
 
   // Check if device has playlist configured (check new playlists table first, then device table)
-  const playlistCount = db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ? AND is_active = 1').get(device.id);
-  const hasPlaylistInTable = playlistCount && playlistCount.count > 0;
+  const playlistCountRow = await db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ? AND is_active = 1').get(device.id);
+  const hasPlaylistInTable = Number(playlistCountRow?.count || 0) > 0;
   const hasPlaylistInDevice = !!(device.playlist_url || (device.xtream_host && device.xtream_username));
   const hasPlaylist = hasPlaylistInTable || hasPlaylistInDevice;
 
   // Get playlist type from playlists table if available
   let playlistType = device.playlist_type || 'm3u';
   if (hasPlaylistInTable) {
-    const firstPlaylist = db.prepare('SELECT playlist_type FROM playlists WHERE device_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1').get(device.id);
+    const firstPlaylist = await db.prepare('SELECT playlist_type FROM playlists WHERE device_id = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1').get(device.id);
     if (firstPlaylist) {
       playlistType = firstPlaylist.playlist_type;
     }
@@ -115,7 +115,7 @@ router.get('/playlist/:mac', async (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Get device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.status(404).json({ error: 'Appareil non enregistré' });
@@ -135,7 +135,7 @@ router.get('/playlist/:mac', async (req, res) => {
   if (device.status === 'trial') {
     const trialEnd = new Date(device.expiration_date);
     if (now > trialEnd) {
-      db.prepare("UPDATE devices SET status = 'expired' WHERE mac_address = ?").run(formattedMac);
+      await db.prepare("UPDATE devices SET status = 'expired' WHERE mac_address = ?").run(formattedMac);
       return res.status(403).json({
         error: 'Période d\'essai terminée',
         status: 'trial_expired',
@@ -145,7 +145,7 @@ router.get('/playlist/:mac', async (req, res) => {
   }
 
   // Check if playlist exists in new playlists table first
-  const playlist = db.prepare(`
+  const playlist = await db.prepare(`
     SELECT * FROM playlists 
     WHERE device_id = ? AND is_active = 1 
     ORDER BY created_at DESC 
@@ -212,7 +212,7 @@ router.get('/playlist/:mac/content', async (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Get device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.status(404).json({ error: 'Appareil non enregistré' });
@@ -224,7 +224,7 @@ router.get('/playlist/:mac/content', async (req, res) => {
   }
 
   // Get active playlist from playlists table
-  const playlist = db.prepare(`
+  const playlist = await db.prepare(`
     SELECT * FROM playlists 
     WHERE device_id = ? AND is_active = 1 
     ORDER BY created_at DESC 
@@ -304,7 +304,7 @@ router.get('/playlist/:mac/content', async (req, res) => {
 });
 
 // Get all playlists for device (for playlist selector)
-router.get('/playlists/:mac', (req, res) => {
+router.get('/playlists/:mac', async (req, res) => {
   const { mac } = req.params;
 
   // Normalize MAC
@@ -316,14 +316,14 @@ router.get('/playlists/:mac', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Get device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé' });
   }
 
   // Get all playlists for this device
-  const playlists = db.prepare(`
+  const playlists = await db.prepare(`
     SELECT id, name, playlist_type, playlist_url, xtream_host, xtream_username, xtream_password, is_active, created_at
     FROM playlists 
     WHERE device_id = ? 
@@ -343,7 +343,7 @@ router.get('/playlists/:mac', (req, res) => {
 });
 
 // Get specific playlist by ID
-router.get('/playlist/:mac/:playlistId', (req, res) => {
+router.get('/playlist/:mac/:playlistId', async (req, res) => {
   const { mac, playlistId } = req.params;
 
   // Normalize MAC
@@ -355,7 +355,7 @@ router.get('/playlist/:mac/:playlistId', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Get device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé' });
@@ -370,7 +370,7 @@ router.get('/playlist/:mac/:playlistId', (req, res) => {
   }
 
   // Get specific playlist
-  const playlist = db.prepare(`
+  const playlist = await db.prepare(`
     SELECT * FROM playlists 
     WHERE id = ? AND device_id = ?
   `).get(playlistId, device.id);
@@ -403,7 +403,7 @@ router.get('/playlist/:mac/:playlistId', (req, res) => {
 });
 
 // Set active playlist for device
-router.post('/playlist/:mac/set-active/:playlistId', (req, res) => {
+router.post('/playlist/:mac/set-active/:playlistId', async (req, res) => {
   const { mac, playlistId } = req.params;
 
   // Normalize MAC
@@ -415,24 +415,24 @@ router.post('/playlist/:mac/set-active/:playlistId', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Get device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé' });
   }
 
   // Check if playlist belongs to this device
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?').get(playlistId, device.id);
+  const playlist = await db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?').get(playlistId, device.id);
   
   if (!playlist) {
     return res.status(404).json({ error: 'Playlist non trouvée' });
   }
 
   // Deactivate all playlists for this device
-  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+  await db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
 
   // Activate the selected playlist
-  db.prepare('UPDATE playlists SET is_active = 1 WHERE id = ?').run(playlistId);
+  await db.prepare('UPDATE playlists SET is_active = 1 WHERE id = ?').run(playlistId);
 
   console.log(`✅ Set playlist ${playlistId} as active for device ${formattedMac}`);
 
@@ -447,7 +447,7 @@ router.post('/playlist/:mac/set-active/:playlistId', (req, res) => {
 });
 
 // Check device status (quick check for app)
-router.get('/status/:mac', (req, res) => {
+router.get('/status/:mac', async (req, res) => {
   const { mac } = req.params;
 
   // Normalize MAC
@@ -458,7 +458,7 @@ router.get('/status/:mac', (req, res) => {
 
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
-  const device = db.prepare('SELECT status, expiration_date, playlist_url, playlist_type, xtream_host, xtream_username FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT status, expiration_date, playlist_url, playlist_type, xtream_host, xtream_username FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.json({

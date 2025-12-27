@@ -9,6 +9,7 @@ import {
   X,
   CreditCard,
   Store,
+  MessageSquare,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
@@ -32,6 +33,7 @@ export function Layout({ children }: LayoutProps) {
         { path: '/admin/devices', icon: Tv, label: 'Appareils' },
         { path: '/admin/transactions', icon: History, label: 'Transactions' },
         { path: '/admin/seller-contacts', icon: Store, label: 'Points de vente' },
+        { path: '/admin/seller-requests', icon: MessageSquare, label: 'Demandes partenariat' },
       ]
     : [
         { path: '/reseller', icon: LayoutDashboard, label: 'Dashboard' },

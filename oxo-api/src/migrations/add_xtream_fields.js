@@ -1,8 +1,14 @@
 // Migration to add Xtream Code fields to devices table
-const { db } = require('../database');
+const { db, usePostgres } = require('../database');
 
 function runMigration() {
   console.log('Running migration: add_xtream_fields');
+
+  // PostgreSQL already has these columns in the schema (created in database.js)
+  if (usePostgres) {
+    console.log('✅ PostgreSQL detected - skipping SQLite migration add_xtream_fields');
+    return;
+  }
   
   try {
     // Check if columns already exist
@@ -47,6 +53,9 @@ if (require.main === module) {
 }
 
 module.exports = { runMigration };
+
+
+
 
 
 

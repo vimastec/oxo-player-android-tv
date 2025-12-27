@@ -39,7 +39,7 @@ router.get('/captcha', (req, res) => {
  * Login with MAC + Device Key
  * POST /api/portal/login
  */
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { mac_address, device_key, captcha_id, captcha_code } = req.body;
 
   // Validate captcha
@@ -69,7 +69,7 @@ router.post('/login', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Find device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé. Lancez d\'abord l\'application OXO Player.' });
@@ -110,7 +110,7 @@ router.post('/login', (req, res) => {
  * Get device info and playlists
  * GET /api/portal/device/:mac
  */
-router.get('/device/:mac', (req, res) => {
+router.get('/device/:mac', async (req, res) => {
   const { mac } = req.params;
   const deviceKey = req.headers['x-device-key'];
 
@@ -123,7 +123,7 @@ router.get('/device/:mac', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Find device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé' });
@@ -135,7 +135,7 @@ router.get('/device/:mac', (req, res) => {
   }
 
   // Get playlists
-  const playlists = db.prepare(`
+  const playlists = await db.prepare(`
     SELECT id, name, playlist_type, playlist_url, xtream_host, xtream_username, 
            epg_url, is_protected, is_active, created_at
     FROM playlists 
@@ -169,7 +169,7 @@ router.get('/device/:mac', (req, res) => {
  * Add M3U Playlist
  * POST /api/portal/playlists
  */
-router.post('/playlists', (req, res) => {
+router.post('/playlists', async (req, res) => {
   const { mac_address, device_key, name, playlist_url, epg_url, is_protected, pin } = req.body;
 
   // Validate
@@ -186,7 +186,7 @@ router.post('/playlists', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Find device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
     .get(formattedMac, device_key);
 
   if (!device) {
@@ -194,18 +194,19 @@ router.post('/playlists', (req, res) => {
   }
 
   // Check playlist limit (max 5 playlists per device)
-  const playlistCount = db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
-    .get(device.id).count;
+  const playlistCountRow = await db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
+    .get(device.id);
+  const playlistCount = Number(playlistCountRow?.count || 0);
   
   if (playlistCount >= 5) {
     return res.status(400).json({ error: 'Limite de 5 playlists atteinte' });
   }
 
   // Deactivate all existing playlists for this device
-  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+  await db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
 
   // Insert new playlist as active
-  const result = db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO playlists (device_id, name, playlist_type, playlist_url, epg_url, is_protected, pin, is_active)
     VALUES (?, ?, 'm3u', ?, ?, ?, ?, 1)
   `).run(device.id, name, playlist_url, epg_url || null, is_protected ? 1 : 0, is_protected ? pin : null);
@@ -213,7 +214,7 @@ router.post('/playlists', (req, res) => {
   res.json({
     success: true,
     message: 'Playlist ajoutée',
-    playlist_id: result.lastInsertRowid
+    playlist_id: Number(result?.lastInsertRowid || 0)
   });
 });
 
@@ -221,7 +222,7 @@ router.post('/playlists', (req, res) => {
  * Add Xtream Code Playlist
  * POST /api/portal/playlists/xtream
  */
-router.post('/playlists/xtream', (req, res) => {
+router.post('/playlists/xtream', async (req, res) => {
   const { mac_address, device_key, name, host, username, password, epg_url, is_protected, pin } = req.body;
 
   // Validate
@@ -238,7 +239,7 @@ router.post('/playlists/xtream', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Find device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
     .get(formattedMac, device_key);
 
   if (!device) {
@@ -246,8 +247,9 @@ router.post('/playlists/xtream', (req, res) => {
   }
 
   // Check playlist limit
-  const playlistCount = db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
-    .get(device.id).count;
+  const playlistCountRow = await db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
+    .get(device.id);
+  const playlistCount = Number(playlistCountRow?.count || 0);
   
   if (playlistCount >= 5) {
     return res.status(400).json({ error: 'Limite de 5 playlists atteinte' });
@@ -259,10 +261,10 @@ router.post('/playlists/xtream', (req, res) => {
   cleanHost = cleanHost.replace(/\/$/, '');
 
   // Deactivate all existing playlists for this device
-  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+  await db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
 
   // Insert new playlist as active
-  const result = db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO playlists (device_id, name, playlist_type, xtream_host, xtream_username, xtream_password, epg_url, is_protected, pin, is_active)
     VALUES (?, ?, 'xtream', ?, ?, ?, ?, ?, ?, 1)
   `).run(device.id, name, cleanHost, username, password, epg_url || null, is_protected ? 1 : 0, is_protected ? pin : null);
@@ -270,7 +272,7 @@ router.post('/playlists/xtream', (req, res) => {
   res.json({
     success: true,
     message: 'Playlist Xtream ajoutée',
-    playlist_id: result.lastInsertRowid
+    playlist_id: Number(result?.lastInsertRowid || 0)
   });
 });
 
@@ -278,7 +280,7 @@ router.post('/playlists/xtream', (req, res) => {
  * Update Playlist
  * PUT /api/portal/playlists/:id
  */
-router.put('/playlists/:id', (req, res) => {
+router.put('/playlists/:id', async (req, res) => {
   const { id } = req.params;
   const { mac_address, device_key, name, playlist_url, host, username, password, epg_url, is_protected, pin, unlock_pin } = req.body;
 
@@ -292,7 +294,7 @@ router.put('/playlists/:id', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Find device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
     .get(formattedMac, device_key);
 
   if (!device) {
@@ -300,7 +302,7 @@ router.put('/playlists/:id', (req, res) => {
   }
 
   // Find playlist
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
+  const playlist = await db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
     .get(id, device.id);
 
   if (!playlist) {
@@ -318,7 +320,7 @@ router.put('/playlists/:id', (req, res) => {
     cleanHost = cleanHost.replace(/^https?:\/\//, '');
     cleanHost = cleanHost.replace(/\/$/, '');
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE playlists 
       SET name = ?, xtream_host = ?, xtream_username = ?, xtream_password = ?, 
           epg_url = ?, is_protected = ?, pin = ?, updated_at = CURRENT_TIMESTAMP
@@ -334,7 +336,7 @@ router.put('/playlists/:id', (req, res) => {
       id
     );
   } else {
-    db.prepare(`
+    await db.prepare(`
       UPDATE playlists 
       SET name = ?, playlist_url = ?, epg_url = ?, is_protected = ?, pin = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -358,7 +360,7 @@ router.put('/playlists/:id', (req, res) => {
  * Delete Playlist
  * DELETE /api/portal/playlists/:id
  */
-router.delete('/playlists/:id', (req, res) => {
+router.delete('/playlists/:id', async (req, res) => {
   const { id } = req.params;
   const { mac_address, device_key, unlock_pin } = req.body;
 
@@ -372,7 +374,7 @@ router.delete('/playlists/:id', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Find device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
     .get(formattedMac, device_key);
 
   if (!device) {
@@ -380,7 +382,7 @@ router.delete('/playlists/:id', (req, res) => {
   }
 
   // Find playlist
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
+  const playlist = await db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
     .get(id, device.id);
 
   if (!playlist) {
@@ -393,7 +395,7 @@ router.delete('/playlists/:id', (req, res) => {
   }
 
   // Delete playlist
-  db.prepare('DELETE FROM playlists WHERE id = ?').run(id);
+  await db.prepare('DELETE FROM playlists WHERE id = ?').run(id);
 
   res.json({
     success: true,
@@ -405,7 +407,7 @@ router.delete('/playlists/:id', (req, res) => {
  * Get playlist details (for editing)
  * POST /api/portal/playlists/:id/unlock
  */
-router.post('/playlists/:id/unlock', (req, res) => {
+router.post('/playlists/:id/unlock', async (req, res) => {
   const { id } = req.params;
   const { mac_address, device_key, pin } = req.body;
 
@@ -419,7 +421,7 @@ router.post('/playlists/:id/unlock', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Find device
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND device_key = ?')
     .get(formattedMac, device_key);
 
   if (!device) {
@@ -427,7 +429,7 @@ router.post('/playlists/:id/unlock', (req, res) => {
   }
 
   // Find playlist
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
+  const playlist = await db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
     .get(id, device.id);
 
   if (!playlist) {
@@ -458,8 +460,8 @@ router.post('/playlists/:id/unlock', (req, res) => {
  * Get list of approved sellers (public)
  * GET /api/portal/sellers
  */
-router.get('/sellers', (req, res) => {
-  const sellers = db.prepare(`
+router.get('/sellers', async (req, res) => {
+  const sellers = await db.prepare(`
     SELECT id, name, city, phone, email, address
     FROM seller_contacts
     WHERE is_active = 1
@@ -467,6 +469,34 @@ router.get('/sellers', (req, res) => {
   `).all();
 
   res.json(sellers);
+});
+
+/**
+ * Submit a request to become a reseller (public)
+ * POST /api/portal/seller-request
+ */
+router.post('/seller-request', async (req, res) => {
+  const { name, phone, city, quantity, message } = req.body;
+
+  if (!name || !phone || !city) {
+    return res.status(400).json({ error: 'Nom, téléphone et ville sont requis' });
+  }
+
+  try {
+    const result = await db.prepare(`
+      INSERT INTO seller_requests (name, phone, city, quantity, message)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(name, phone, city, quantity || 1, message || null);
+
+    res.status(201).json({
+      success: true,
+      message: 'Votre demande a été envoyée avec succès. Nous vous contacterons bientôt.',
+      id: Number(result?.lastInsertRowid || 0)
+    });
+  } catch (error) {
+    console.error('Error submitting seller request:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi de la demande' });
+  }
 });
 
 // Helper functions

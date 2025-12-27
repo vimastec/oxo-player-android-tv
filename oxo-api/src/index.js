@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const http = require('http');
 const https = require('https');
@@ -13,11 +14,47 @@ const resellerRoutes = require('./routes/reseller');
 const deviceRoutes = require('./routes/device');
 const portalRoutes = require('./routes/portal');
 
+// Security middleware
+const {
+  generalLimiter,
+  loginLimiter,
+  activationLimiter,
+  deviceLimiter,
+  corsOptions,
+  initializeFirebase,
+  verifyAppHeaders,
+  requireSecureConfig,
+} = require('./middleware/security');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// Trust proxy (Railway uses reverse proxy)
+app.set('trust proxy', 1);
+
+// ============================================
+// SECURITY MIDDLEWARE
+// ============================================
+
+// Helmet - Security headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false, // Disable CSP for API
+}));
+
+// CORS - Configured for allowed origins
+app.use(cors(corsOptions));
+
+// General rate limiting
+app.use('/api', generalLimiter);
+
+// Require secure config check
+app.use(requireSecureConfig);
+
+// App verification for Android requests
+app.use(verifyAppHeaders);
+
+// JSON parsing
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -88,11 +125,27 @@ app.get('/api/stream/proxy', (req, res) => {
   fetchStream(streamUrl);
 });
 
-// Routes
+// ============================================
+// ROUTES WITH SPECIFIC RATE LIMITS
+// ============================================
+
+// Auth routes - strict rate limiting on login
+app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);
+
+// Admin routes
 app.use('/api/admin', adminRoutes);
+
+// Reseller routes - activation has its own limiter
+app.use('/api/reseller/activate', activationLimiter);
 app.use('/api/reseller', resellerRoutes);
+
+// Device routes - for Android app
+app.use('/api/device', deviceLimiter);
 app.use('/api/device', deviceRoutes);
+
+// Portal routes
+app.use('/api/portal/login', loginLimiter);
 app.use('/api/portal', portalRoutes);
 
 // Health check
@@ -100,36 +153,53 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'OXO API is running' });
 });
 
-// Initialize database and start server
-db.init();
+// ============================================
+// SERVER INITIALIZATION
+// ============================================
 
-// Run migrations after DB init
-try {
-  const xtreamMigration = require('./migrations/add_xtream_fields');
-  xtreamMigration.runMigration();
-} catch (err) {
-  console.log('Xtream migration already applied or failed:', err.message);
-}
+(async () => {
+  try {
+    // Initialize Firebase Admin (for token verification)
+    initializeFirebase();
+    
+    // Initialize database
+    await db.init();
 
-try {
-  const portalMigration = require('./migrations/add_portal_support');
-  portalMigration.runMigration();
-} catch (err) {
-  console.log('Portal migration already applied or failed:', err.message);
-}
+    // Run migrations only for SQLite (PostgreSQL schema is created in database.js)
+    if (!db.usePostgres) {
+      try {
+        const xtreamMigration = require('./migrations/add_xtream_fields');
+        xtreamMigration.runMigration();
+      } catch (err) {
+        console.log('Xtream migration already applied or failed:', err.message);
+      }
 
-app.listen(PORT, () => {
-  console.log(`
-  ╔═══════════════════════════════════════════╗
-  ║         OXO Player API Server             ║
-  ╠═══════════════════════════════════════════╣
-  ║  🚀 Server running on port ${PORT}            ║
-  ║  📡 API: http://localhost:${PORT}/api        ║
-  ║                                           ║
-  ║  Admin credentials:                       ║
-  ║  📧 Email: ${process.env.ADMIN_EMAIL}      
-  ║  🔑 Password: ${process.env.ADMIN_PASSWORD}              ║
-  ╚═══════════════════════════════════════════╝
-  `);
-});
+      try {
+        const portalMigration = require('./migrations/add_portal_support');
+        portalMigration.runMigration();
+      } catch (err) {
+        console.log('Portal migration already applied or failed:', err.message);
+      }
+    } else {
+      console.log('✅ PostgreSQL detected - skipping SQLite migrations');
+    }
+
+    app.listen(PORT, () => {
+      const isProduction = process.env.NODE_ENV === 'production';
+      console.log(`
+  ╔═══════════════════════════════════════════════════╗
+  ║         OXO Player API Server                     ║
+  ╠═══════════════════════════════════════════════════╣
+  ║  🚀 Server running on port ${PORT}                    ║
+  ║  📡 API: http://localhost:${PORT}/api                ║
+  ║  🔒 Mode: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}                          ║
+  ║  🛡️  Security: helmet, rate-limit, CORS strict     ║
+  ╚═══════════════════════════════════════════════════╝
+      `);
+    });
+  } catch (err) {
+    console.error('❌ Failed to initialize database:', err);
+    process.exit(1);
+  }
+})();
 

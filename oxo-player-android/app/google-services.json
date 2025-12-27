@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "72824941354",
+    "project_id": "my-oxo-player",
+    "storage_bucket": "my-oxo-player.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:72824941354:android:87c35133d19473842b0c53",
+        "android_client_info": {
+          "package_name": "com.oxoplayer.tv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeYnB5iPVd76kyeS3eghIeJBYK-okvKJM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

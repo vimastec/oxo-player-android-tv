@@ -8,6 +8,7 @@ interface Reseller {
   name: string;
   credits: number;
   status: string;
+  allow_cross_reseller_activation?: boolean | number;
   device_count: number;
   active_devices: number;
   created_at: string;
@@ -24,6 +25,7 @@ export function ResellersPage() {
     password: '',
     name: '',
     credits: 0,
+    allow_cross_reseller_activation: false,
   });
   const [creditsAmount, setCreditsAmount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,7 +51,7 @@ export function ResellersPage() {
     try {
       await adminApi.createReseller(formData);
       setShowModal(false);
-      setFormData({ email: '', password: '', name: '', credits: 0 });
+      setFormData({ email: '', password: '', name: '', credits: 0, allow_cross_reseller_activation: false });
       loadResellers();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erreur lors de la création');
@@ -95,6 +97,18 @@ export function ResellersPage() {
     }
   };
 
+  const handleToggleCrossActivation = async (reseller: Reseller) => {
+    const current =
+      reseller.allow_cross_reseller_activation === true || reseller.allow_cross_reseller_activation === 1;
+    const next = !current;
+    try {
+      await adminApi.updateReseller(reseller.id, { allow_cross_reseller_activation: next });
+      loadResellers();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erreur lors de la mise à jour');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -124,11 +138,17 @@ export function ResellersPage() {
                   <th>Crédits</th>
                   <th>Appareils</th>
                   <th>Statut</th>
+                  <th>Transfert MAC</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {resellers.map((reseller) => (
+                  (() => {
+                    const crossEnabled =
+                      reseller.allow_cross_reseller_activation === true ||
+                      reseller.allow_cross_reseller_activation === 1;
+                    return (
                   <tr key={reseller.id}>
                     <td className="font-medium">{reseller.name}</td>
                     <td>{reseller.email}</td>
@@ -146,6 +166,16 @@ export function ResellersPage() {
                       >
                         {reseller.status === 'active' ? 'Actif' : 'Suspendu'}
                       </span>
+                    </td>
+                    <td>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={crossEnabled}
+                          onChange={() => handleToggleCrossActivation(reseller)}
+                        />
+                        <span className="text-sm text-muted">Autoriser</span>
+                      </label>
                     </td>
                     <td>
                       <div className="flex items-center gap-2">
@@ -176,6 +206,8 @@ export function ResellersPage() {
                       </div>
                     </td>
                   </tr>
+                    );
+                  })()
                 ))}
               </tbody>
             </table>
@@ -232,6 +264,21 @@ export function ResellersPage() {
                   onChange={(e) => setFormData({ ...formData, credits: parseInt(e.target.value) || 0 })}
                 />
               </div>
+              <div className="flex items-start gap-3 pt-2">
+                <input
+                  type="checkbox"
+                  checked={formData.allow_cross_reseller_activation}
+                  onChange={(e) =>
+                    setFormData({ ...formData, allow_cross_reseller_activation: e.target.checked })
+                  }
+                />
+                <div>
+                  <p className="text-sm font-medium">Autoriser transfert/prolongation d’une MAC d’un autre revendeur</p>
+                  <p className="text-xs text-muted">
+                    Si activé, ce revendeur pourra prolonger une MAC active appartenant à un autre revendeur (avec confirmation).
+                  </p>
+                </div>
+              </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary flex-1">
                   Annuler
@@ -286,6 +333,9 @@ export function ResellersPage() {
     </div>
   );
 }
+
+
+
 
 
 

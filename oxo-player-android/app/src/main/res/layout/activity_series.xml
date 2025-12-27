@@ -41,7 +41,8 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:background="#1A1A1A">
+            android:background="#1A1A1A"
+            android:clipChildren="false">
 
             <!-- Category Title Bar with Search -->
             <LinearLayout
@@ -111,7 +112,9 @@
 
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent"
+                android:clipChildren="false"
+                android:clipToPadding="false">
 
                 <!-- Series Grid -->
                 <androidx.recyclerview.widget.RecyclerView
@@ -119,8 +122,12 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:scrollbars="vertical"
+                    android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:padding="16dp" />
+                    android:paddingStart="16dp"
+                    android:paddingTop="16dp"
+                    android:paddingEnd="40dp"
+                    android:paddingBottom="16dp" />
 
                 <!-- No Results Text -->
                 <TextView

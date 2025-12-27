@@ -44,8 +44,14 @@ object WatchProgressManager {
         val positionMs: Long,
         val durationMs: Long,
         val lastWatched: Long = System.currentTimeMillis(),
-        val type: String, // "MOVIE" or "SERIES"
-        val cover: String? = null // Optional cover image URL
+        val type: String, // "MOVIE" or "SERIES" or "LIVE"
+        val cover: String? = null, // Optional cover image URL
+        // Series-specific metadata (null for movies/live)
+        val seriesId: String? = null,
+        val seriesName: String? = null,
+        val seasonNumber: Int? = null,
+        val episodeId: String? = null,
+        val seasonsJson: String? = null // JSON string of all seasons for episode navigation
     ) {
         val progressPercent: Float
             get() = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f
@@ -141,7 +147,12 @@ object WatchProgressManager {
         positionMs: Long,
         durationMs: Long,
         type: String,
-        cover: String? = null
+        cover: String? = null,
+        seriesId: String? = null,
+        seriesName: String? = null,
+        seasonNumber: Int? = null,
+        episodeId: String? = null,
+        seasonsJson: String? = null
     ) {
         // Don't save if position is too early
         if (positionMs < MIN_PROGRESS_TO_SAVE_MS) {
@@ -155,7 +166,12 @@ object WatchProgressManager {
             positionMs = positionMs,
             durationMs = durationMs,
             type = type,
-            cover = cover
+            cover = cover,
+            seriesId = seriesId,
+            seriesName = seriesName,
+            seasonNumber = seasonNumber,
+            episodeId = episodeId,
+            seasonsJson = seasonsJson
         )
         
         // If video is finished, remove progress instead of saving

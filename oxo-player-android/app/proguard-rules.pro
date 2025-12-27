@@ -49,6 +49,22 @@
   public *;
 }
 
+# Firebase
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
+
+# Keep Firebase Auth
+-keep class com.google.firebase.auth.** { *; }
+-keepclassmembers class com.google.firebase.auth.** { *; }
+
+# Keep our auth helper
+-keep class com.oxoplayer.tv.data.auth.** { *; }
+
+
+
+
 
 
 

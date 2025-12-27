@@ -1,11 +1,16 @@
 package com.oxoplayer.tv.ui.series
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -16,9 +21,11 @@ import com.bumptech.glide.Glide
 import com.google.gson.Gson
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.DataManager
+import com.oxoplayer.tv.data.SeriesConfigManager
 import com.oxoplayer.tv.data.models.Episode
 import com.oxoplayer.tv.data.models.Season
 import com.oxoplayer.tv.data.models.Series
+import com.oxoplayer.tv.data.models.SeriesPlaybackConfig
 import com.oxoplayer.tv.data.models.XtreamSeriesInfo
 import com.oxoplayer.tv.data.repository.XtreamRepository
 import kotlinx.coroutines.launch
@@ -55,6 +62,7 @@ class SeriesDetailActivity : AppCompatActivity() {
     private lateinit var divider1: View
     private lateinit var divider2: View
     private lateinit var episodesTitle: TextView
+    private lateinit var btnConfigurePlayback: Button
     
     private val xtreamRepository = XtreamRepository()
     
@@ -120,6 +128,12 @@ class SeriesDetailActivity : AppCompatActivity() {
         divider1 = findViewById(R.id.divider1)
         divider2 = findViewById(R.id.divider2)
         episodesTitle = findViewById(R.id.episodesTitle)
+        btnConfigurePlayback = findViewById(R.id.btnConfigurePlayback)
+        
+        // Setup configuration button
+        btnConfigurePlayback.setOnClickListener {
+            showConfigurationDialog()
+        }
         
         // Set initial data
         titleText.text = seriesName
@@ -342,8 +356,9 @@ class SeriesDetailActivity : AppCompatActivity() {
         // Always use series cover for "Continue Watching" section consistency
         intent.putExtra("COVER", series?.cover)
         
-        // Pass series info for Episodes button
+        // Pass series info for Episodes button and configuration
         intent.putExtra("SERIES_NAME", series?.name)
+        intent.putExtra("SERIES_ID", seriesId) // Pass series ID for configuration
         intent.putExtra("CURRENT_SEASON", selectedSeasonIndex + 1) // Season number (1-based)
         intent.putExtra("CURRENT_EPISODE_ID", episode.id)
         
@@ -364,6 +379,132 @@ class SeriesDetailActivity : AppCompatActivity() {
     
     private fun showLoading(show: Boolean) {
         progressBar.visibility = if (show) View.VISIBLE else View.GONE
+    }
+    
+    private fun showConfigurationDialog() {
+        if (seasons.isEmpty()) {
+            Toast.makeText(this, "Veuillez d'abord sélectionner une saison", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val dialogView = layoutInflater.inflate(R.layout.dialog_series_config, null)
+        
+        // Get views
+        val skipIntroMinutes = dialogView.findViewById<EditText>(R.id.skipIntroMinutes)
+        val skipIntroSeconds = dialogView.findViewById<EditText>(R.id.skipIntroSeconds)
+        val nextEpisodeMinutes = dialogView.findViewById<EditText>(R.id.nextEpisodeMinutes)
+        val nextEpisodeSeconds = dialogView.findViewById<EditText>(R.id.nextEpisodeSeconds)
+        val scopeRadioGroup = dialogView.findViewById<RadioGroup>(R.id.scopeRadioGroup)
+        val radioAllSeasons = dialogView.findViewById<RadioButton>(R.id.radioAllSeasons)
+        val radioCurrentSeason = dialogView.findViewById<RadioButton>(R.id.radioCurrentSeason)
+        val btnReset = dialogView.findViewById<Button>(R.id.btnReset)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btnCancel)
+        val btnSave = dialogView.findViewById<Button>(R.id.btnSave)
+        
+        // Update current season radio text
+        val currentSeasonNum = if (selectedSeasonIndex >= 0) seasons[selectedSeasonIndex].seasonNumber else 1
+        radioCurrentSeason.text = "Juste la saison $currentSeasonNum"
+        
+        // Load existing config or use defaults
+        val config = SeriesConfigManager.getConfig(seriesId.toString(), currentSeasonNum)
+        
+        // Populate fields
+        val (skipIntroMin, skipIntroSec) = SeriesConfigManager.msToMinutesSeconds(config.skipIntroJumpToMs)
+        skipIntroMinutes.setText(skipIntroMin.toString())
+        skipIntroSeconds.setText(skipIntroSec.toString())
+        
+        val (nextEpisodeMin, nextEpisodeSec) = SeriesConfigManager.msToMinutesSeconds(config.nextEpisodeThresholdMs)
+        nextEpisodeMinutes.setText(nextEpisodeMin.toString())
+        nextEpisodeSeconds.setText(nextEpisodeSec.toString())
+        
+        // Select scope
+        if (config.applyToAllSeasons) {
+            radioAllSeasons.isChecked = true
+        } else {
+            radioCurrentSeason.isChecked = true
+        }
+        
+        val dialog = AlertDialog.Builder(this, R.style.Theme_OXOPlayer_Dialog)
+            .setView(dialogView)
+            .create()
+        
+        // Reset button
+        btnReset.setOnClickListener {
+            skipIntroMinutes.setText("2")
+            skipIntroSeconds.setText("0")
+            nextEpisodeMinutes.setText("1")
+            nextEpisodeSeconds.setText("0")
+            radioAllSeasons.isChecked = true
+            Toast.makeText(this, "Valeurs par défaut restaurées", Toast.LENGTH_SHORT).show()
+        }
+        
+        // Cancel button
+        btnCancel.setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        // Save button
+        btnSave.setOnClickListener {
+            try {
+                // Get values
+                val skipMin = skipIntroMinutes.text.toString().toIntOrNull() ?: 2
+                val skipSec = skipIntroSeconds.text.toString().toIntOrNull() ?: 0
+                val nextMin = nextEpisodeMinutes.text.toString().toIntOrNull() ?: 1
+                val nextSec = nextEpisodeSeconds.text.toString().toIntOrNull() ?: 0
+                
+                // Validation
+                if (skipMin < 0 || skipSec < 0 || skipSec >= 60) {
+                    Toast.makeText(this, "Valeurs intro invalides (secondes: 0-59)", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                if (nextMin < 0 || nextSec < 0 || nextSec >= 60) {
+                    Toast.makeText(this, "Valeurs épisode invalides (secondes: 0-59)", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                // Convert to milliseconds
+                val skipIntroJumpToMs = SeriesConfigManager.minutesSecondsToMs(skipMin, skipSec)
+                val nextEpisodeThresholdMs = SeriesConfigManager.minutesSecondsToMs(nextMin, nextSec)
+                
+                // Determine scope
+                val applyToAll = radioAllSeasons.isChecked
+                val seasonNum = if (applyToAll) null else currentSeasonNum
+                
+                // Create config
+                val newConfig = SeriesPlaybackConfig(
+                    seriesId = seriesId.toString(),
+                    seasonNumber = seasonNum,
+                    skipIntroShowAtMs = SeriesConfigManager.DEFAULT_SKIP_INTRO_SHOW_AT_MS, // Keep default (10s)
+                    skipIntroJumpToMs = skipIntroJumpToMs,
+                    nextEpisodeThresholdMs = nextEpisodeThresholdMs,
+                    applyToAllSeasons = applyToAll
+                )
+                
+                // Save
+                SeriesConfigManager.saveConfig(newConfig)
+                
+                val scope = if (applyToAll) "toute la série" else "la saison $currentSeasonNum"
+                Toast.makeText(
+                    this,
+                    "✓ Configuration enregistrée pour $scope",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+                dialog.dismiss()
+                
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error saving config", e)
+                Toast.makeText(this, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        dialog.show()
+        
+        // Request focus on first field
+        skipIntroMinutes.post {
+            skipIntroMinutes.requestFocus()
+        }
     }
     
     override fun onBackPressed() {

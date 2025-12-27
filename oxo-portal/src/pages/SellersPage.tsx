@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, MapPin, Mail, Store, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, Phone, MapPin, Mail, Store, Loader2, Search, Send, CheckCircle, Users } from 'lucide-react';
 import { portalApi, SellerContact } from '../services/api';
 
 export default function SellersPage() {
@@ -9,6 +9,19 @@ export default function SellersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
+  
+  // Contact form state
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    city: '',
+    quantity: 10,
+    message: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     loadSellers();
@@ -22,6 +35,22 @@ export default function SellersPage() {
       console.error('Error loading sellers:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      await portalApi.submitSellerRequest(formData);
+      setSubmitSuccess(true);
+      setFormData({ name: '', phone: '', city: '', quantity: 10, message: '' });
+    } catch (error: any) {
+      setSubmitError(error.response?.data?.error || 'Erreur lors de l\'envoi');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -183,14 +212,151 @@ export default function SellersPage() {
           </div>
         )}
 
-        {/* Footer */}
-        <div className="mt-12 text-center">
-          <p className="text-gray-500 text-sm">
-            Vous êtes revendeur et souhaitez être référencé ?
-          </p>
-          <p className="text-primary text-sm mt-1">
-            Contactez-nous pour rejoindre notre réseau
-          </p>
+        {/* Become a Reseller Section */}
+        <div className="mt-12 card p-6 border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+              <Users className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Devenez revendeur OXO Player</h3>
+              <p className="text-gray-400 text-sm">Rejoignez notre réseau de partenaires</p>
+            </div>
+          </div>
+
+          {!showContactForm && !submitSuccess && (
+            <button
+              onClick={() => setShowContactForm(true)}
+              className="w-full btn btn-primary py-3 mt-4"
+            >
+              <Send className="w-5 h-5 mr-2" />
+              Faire une demande
+            </button>
+          )}
+
+          {submitSuccess && (
+            <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-center">
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+              <h4 className="text-green-400 font-semibold text-lg">Demande envoyée !</h4>
+              <p className="text-gray-400 text-sm mt-2">
+                Nous vous contacterons très bientôt pour discuter de votre partenariat.
+              </p>
+              <button
+                onClick={() => {
+                  setSubmitSuccess(false);
+                  setShowContactForm(false);
+                }}
+                className="mt-4 text-primary hover:underline text-sm"
+              >
+                Fermer
+              </button>
+            </div>
+          )}
+
+          {showContactForm && !submitSuccess && (
+            <form onSubmit={handleSubmitRequest} className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Nom complet <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Votre nom"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Téléphone <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="+212 6XX XXX XXX"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Ville <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Votre ville"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Quantité estimée / mois
+                  </label>
+                  <select
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                    className="bg-dark-200 border border-dark-100 rounded-lg px-4 py-3 text-white w-full"
+                  >
+                    <option value={5}>5 - 10 activations</option>
+                    <option value={10}>10 - 25 activations</option>
+                    <option value={25}>25 - 50 activations</option>
+                    <option value={50}>50 - 100 activations</option>
+                    <option value={100}>100+ activations</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Message (optionnel)
+                </label>
+                <textarea
+                  placeholder="Parlez-nous de votre activité..."
+                  value={formData.message}
+                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                  rows={3}
+                  className="bg-dark-200 border border-dark-100 rounded-lg px-4 py-3 text-white w-full resize-none"
+                />
+              </div>
+
+              {submitError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                  {submitError}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowContactForm(false)}
+                  className="btn btn-secondary flex-1"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="btn btn-primary flex-1"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5 mr-2" />
+                      Envoyer la demande
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>

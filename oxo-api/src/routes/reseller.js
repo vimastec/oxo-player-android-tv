@@ -43,18 +43,18 @@ const upload = multer({
 router.use(verifyToken, isReseller);
 
 // Dashboard stats for reseller
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', async (req, res) => {
   const resellerId = req.user.id;
   
   // Get reseller info with credits
-  const reseller = db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+  const reseller = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
   
-  const totalDevices = db.prepare('SELECT COUNT(*) as count FROM devices WHERE reseller_id = ?').get(resellerId).count;
-  const activeDevices = db.prepare("SELECT COUNT(*) as count FROM devices WHERE reseller_id = ? AND status = 'active'").get(resellerId).count;
-  const expiredDevices = db.prepare("SELECT COUNT(*) as count FROM devices WHERE reseller_id = ? AND status = 'expired'").get(resellerId).count;
+  const totalDevicesRow = await db.prepare('SELECT COUNT(*) as count FROM devices WHERE reseller_id = ?').get(resellerId);
+  const activeDevicesRow = await db.prepare("SELECT COUNT(*) as count FROM devices WHERE reseller_id = ? AND status = 'active'").get(resellerId);
+  const expiredDevicesRow = await db.prepare("SELECT COUNT(*) as count FROM devices WHERE reseller_id = ? AND status = 'expired'").get(resellerId);
 
   // Recent devices
-  const recentDevices = db.prepare(`
+  const recentDevices = await db.prepare(`
     SELECT mac_address, status, activation_date, expiration_date
     FROM devices
     WHERE reseller_id = ?
@@ -65,19 +65,19 @@ router.get('/dashboard', (req, res) => {
   res.json({
     credits: reseller?.credits || 0,
     stats: {
-      totalDevices,
-      activeDevices,
-      expiredDevices
+      totalDevices: Number(totalDevicesRow?.count || 0),
+      activeDevices: Number(activeDevicesRow?.count || 0),
+      expiredDevices: Number(expiredDevicesRow?.count || 0)
     },
     recentDevices
   });
 });
 
 // List reseller's devices
-router.get('/devices', (req, res) => {
+router.get('/devices', async (req, res) => {
   const resellerId = req.user.id;
   
-  const devices = db.prepare(`
+  const devices = await db.prepare(`
     SELECT *
     FROM devices
     WHERE reseller_id = ?
@@ -88,7 +88,7 @@ router.get('/devices', (req, res) => {
 });
 
 // Check MAC address status before activation
-router.post('/check-mac', (req, res) => {
+router.post('/check-mac', async (req, res) => {
   const { mac_address } = req.body;
   const resellerId = req.user.id;
 
@@ -106,7 +106,7 @@ router.post('/check-mac', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Check if device exists
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   if (!device) {
     // New device - can be activated
@@ -138,7 +138,7 @@ router.post('/check-mac', (req, res) => {
 });
 
 // Activate a MAC address
-router.post('/activate', (req, res) => {
+router.post('/activate', async (req, res) => {
   const { mac_address, force_extend } = req.body;
   const resellerId = req.user.id;
   const creditsRequired = parseInt(process.env.CREDITS_PER_ACTIVATION) || 10;
@@ -158,15 +158,19 @@ router.post('/activate', (req, res) => {
   const formattedMac = normalizedMac.match(/.{2}/g).join(':');
 
   // Check reseller credits
-  const reseller = db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+  const reseller = await db
+    .prepare('SELECT credits, allow_cross_reseller_activation FROM resellers WHERE id = ?')
+    .get(resellerId);
   if (!reseller || reseller.credits < creditsRequired) {
     return res.status(400).json({ 
       error: `Crédits insuffisants. Requis: ${creditsRequired}, Disponible: ${reseller?.credits || 0}` 
     });
   }
+  const allowCrossResellerActivation =
+    reseller.allow_cross_reseller_activation === true || reseller.allow_cross_reseller_activation === 1;
 
   // Check if device exists
-  let device = db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
+  let device = await db.prepare('SELECT * FROM devices WHERE mac_address = ?').get(formattedMac);
 
   const now = new Date();
   let expirationDate;
@@ -179,10 +183,23 @@ router.post('/activate', (req, res) => {
 
     // If device is currently active and belongs to a different reseller
     if (isCurrentlyActive && device.reseller_id && device.reseller_id !== resellerId) {
-      return res.status(400).json({ 
-        error: 'Cette adresse MAC est active et appartient à un autre revendeur',
-        status: 'belongs_to_other'
-      });
+      if (!allowCrossResellerActivation) {
+        return res.status(400).json({ 
+          error: 'Cette adresse MAC est active et appartient à un autre revendeur',
+          status: 'belongs_to_other'
+        });
+      }
+
+      // Cross-reseller takeover allowed: ask confirmation unless force_extend
+      if (!force_extend) {
+        return res.status(409).json({
+          error: 'confirmation_required',
+          status: 'belongs_to_other',
+          mac_address: formattedMac,
+          expiration_date: device.expiration_date,
+          message: `Cette MAC est déjà active jusqu'au ${currentExpiration.toLocaleDateString('fr-FR')} et appartient à un autre revendeur. Confirmez pour prolonger de 365 jours et transférer cette MAC à votre compte.`
+        });
+      }
     }
 
     // If device is active and no force_extend flag, return info for confirmation
@@ -211,7 +228,7 @@ router.post('/activate', (req, res) => {
     }
 
     // Update existing device
-    db.prepare(`
+    await db.prepare(`
       UPDATE devices 
       SET reseller_id = ?, status = 'active', activation_date = ?, expiration_date = ?
       WHERE mac_address = ?
@@ -221,22 +238,22 @@ router.post('/activate', (req, res) => {
     expirationDate = new Date(now);
     expirationDate.setDate(expirationDate.getDate() + activationDays);
 
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO devices (mac_address, reseller_id, status, activation_date, expiration_date)
       VALUES (?, ?, 'active', ?, ?)
     `).run(formattedMac, resellerId, now.toISOString(), expirationDate.toISOString());
   }
 
   // Deduct credits
-  db.prepare('UPDATE resellers SET credits = credits - ? WHERE id = ?').run(creditsRequired, resellerId);
+  await db.prepare('UPDATE resellers SET credits = credits - ? WHERE id = ?').run(creditsRequired, resellerId);
 
   // Log transaction
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO transactions (reseller_id, type, amount, description, mac_address)
     VALUES (?, 'activation', ?, ?, ?)
   `).run(resellerId, creditsRequired, transactionDescription, formattedMac);
 
-  const updatedReseller = db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+  const updatedReseller = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
 
   res.json({
     message: isExtension ? 'Prolongation réussie (+365 jours)' : 'Activation réussie',
@@ -249,7 +266,7 @@ router.post('/activate', (req, res) => {
 });
 
 // Upload M3U playlist for a device
-router.post('/devices/:mac/playlist', upload.single('playlist'), (req, res) => {
+router.post('/devices/:mac/playlist', upload.single('playlist'), async (req, res) => {
   const { mac } = req.params;
   const { playlist_url } = req.body;
   const resellerId = req.user.id;
@@ -262,7 +279,7 @@ router.post('/devices/:mac/playlist', upload.single('playlist'), (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?').get(formattedMac, resellerId);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?').get(formattedMac, resellerId);
   
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé ou non autorisé' });
@@ -283,7 +300,7 @@ router.post('/devices/:mac/playlist', upload.single('playlist'), (req, res) => {
     return res.status(400).json({ error: 'Fichier M3U ou URL requis' });
   }
 
-  db.prepare('UPDATE devices SET playlist_url = ?, playlist_content = ? WHERE mac_address = ?')
+  await db.prepare('UPDATE devices SET playlist_url = ?, playlist_content = ? WHERE mac_address = ?')
     .run(playlistPath, playlistContent, formattedMac);
 
   res.json({
@@ -294,7 +311,7 @@ router.post('/devices/:mac/playlist', upload.single('playlist'), (req, res) => {
 });
 
 // Set playlist URL for a device
-router.put('/devices/:mac/playlist-url', (req, res) => {
+router.put('/devices/:mac/playlist-url', async (req, res) => {
   const { mac } = req.params;
   const { url } = req.body;
   const resellerId = req.user.id;
@@ -311,14 +328,14 @@ router.put('/devices/:mac/playlist-url', (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?').get(formattedMac, resellerId);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?').get(formattedMac, resellerId);
   
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé ou non autorisé' });
   }
 
   // Clear Xtream credentials when setting M3U URL
-  db.prepare(`
+  await db.prepare(`
     UPDATE devices 
     SET playlist_url = ?, 
         playlist_type = 'm3u',
@@ -336,7 +353,7 @@ router.put('/devices/:mac/playlist-url', (req, res) => {
 });
 
 // Set Xtream Code credentials for a device
-router.put('/devices/:mac/xtream', (req, res) => {
+router.put('/devices/:mac/xtream', async (req, res) => {
   const { mac } = req.params;
   const { host, username, password } = req.body;
   const resellerId = req.user.id;
@@ -354,7 +371,7 @@ router.put('/devices/:mac/xtream', (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?').get(formattedMac, resellerId);
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?').get(formattedMac, resellerId);
   
   if (!device) {
     return res.status(404).json({ error: 'Appareil non trouvé ou non autorisé' });
@@ -366,7 +383,7 @@ router.put('/devices/:mac/xtream', (req, res) => {
   cleanHost = cleanHost.replace(/\/$/, '');
 
   // Update device with Xtream credentials
-  db.prepare(`
+  await db.prepare(`
     UPDATE devices 
     SET playlist_type = 'xtream',
         xtream_host = ?,
@@ -386,10 +403,10 @@ router.put('/devices/:mac/xtream', (req, res) => {
 });
 
 // Get reseller's transaction history
-router.get('/transactions', (req, res) => {
+router.get('/transactions', async (req, res) => {
   const resellerId = req.user.id;
   
-  const transactions = db.prepare(`
+  const transactions = await db.prepare(`
     SELECT *
     FROM transactions
     WHERE reseller_id = ?
@@ -403,7 +420,7 @@ router.get('/transactions', (req, res) => {
 // ============= NEW: Multi-Playlist Management =============
 
 // Get all playlists for a device
-router.get('/devices/:mac/playlists', (req, res) => {
+router.get('/devices/:mac/playlists', async (req, res) => {
   const { mac } = req.params;
   const resellerId = req.user.id;
 
@@ -415,7 +432,7 @@ router.get('/devices/:mac/playlists', (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
     .get(formattedMac, resellerId);
   
   if (!device) {
@@ -423,7 +440,7 @@ router.get('/devices/:mac/playlists', (req, res) => {
   }
 
   // Get all playlists for this device
-  const playlists = db.prepare(`
+  const playlists = await db.prepare(`
     SELECT id, name, playlist_type, playlist_url, xtream_host, xtream_username, 
            epg_url, is_active, created_at
     FROM playlists 
@@ -448,7 +465,7 @@ router.get('/devices/:mac/playlists', (req, res) => {
 });
 
 // Add M3U playlist to a device
-router.post('/devices/:mac/playlists/m3u', (req, res) => {
+router.post('/devices/:mac/playlists/m3u', async (req, res) => {
   const { mac } = req.params;
   const { name, playlist_url, epg_url } = req.body;
   const resellerId = req.user.id;
@@ -465,7 +482,7 @@ router.post('/devices/:mac/playlists/m3u', (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
     .get(formattedMac, resellerId);
   
   if (!device) {
@@ -473,18 +490,19 @@ router.post('/devices/:mac/playlists/m3u', (req, res) => {
   }
 
   // Check playlist limit (max 5 playlists per device)
-  const playlistCount = db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
-    .get(device.id).count;
+  const playlistCountRow = await db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
+    .get(device.id);
+  const playlistCount = Number(playlistCountRow?.count || 0);
   
   if (playlistCount >= 5) {
     return res.status(400).json({ error: 'Limite de 5 playlists atteinte' });
   }
 
   // Deactivate all existing playlists for this device
-  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+  await db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
 
   // Insert new playlist as active
-  const result = db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO playlists (device_id, name, playlist_type, playlist_url, epg_url, is_active)
     VALUES (?, ?, 'm3u', ?, ?, 1)
   `).run(device.id, name, playlist_url, epg_url || null);
@@ -492,12 +510,12 @@ router.post('/devices/:mac/playlists/m3u', (req, res) => {
   res.json({
     success: true,
     message: 'Playlist M3U ajoutée',
-    playlist_id: result.lastInsertRowid
+    playlist_id: Number(result?.lastInsertRowid || 0)
   });
 });
 
 // Add Xtream Code playlist to a device
-router.post('/devices/:mac/playlists/xtream', (req, res) => {
+router.post('/devices/:mac/playlists/xtream', async (req, res) => {
   const { mac } = req.params;
   const { name, host, username, password, epg_url } = req.body;
   const resellerId = req.user.id;
@@ -514,7 +532,7 @@ router.post('/devices/:mac/playlists/xtream', (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
     .get(formattedMac, resellerId);
   
   if (!device) {
@@ -522,8 +540,9 @@ router.post('/devices/:mac/playlists/xtream', (req, res) => {
   }
 
   // Check playlist limit (max 5 playlists per device)
-  const playlistCount = db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
-    .get(device.id).count;
+  const playlistCountRow = await db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
+    .get(device.id);
+  const playlistCount = Number(playlistCountRow?.count || 0);
   
   if (playlistCount >= 5) {
     return res.status(400).json({ error: 'Limite de 5 playlists atteinte' });
@@ -535,10 +554,10 @@ router.post('/devices/:mac/playlists/xtream', (req, res) => {
   cleanHost = cleanHost.replace(/\/$/, '');
 
   // Deactivate all existing playlists for this device
-  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+  await db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
 
   // Insert new playlist as active
-  const result = db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO playlists (device_id, name, playlist_type, xtream_host, xtream_username, xtream_password, epg_url, is_active)
     VALUES (?, ?, 'xtream', ?, ?, ?, ?, 1)
   `).run(device.id, name, cleanHost, username, password, epg_url || null);
@@ -546,12 +565,12 @@ router.post('/devices/:mac/playlists/xtream', (req, res) => {
   res.json({
     success: true,
     message: 'Playlist Xtream ajoutée',
-    playlist_id: result.lastInsertRowid
+    playlist_id: Number(result?.lastInsertRowid || 0)
   });
 });
 
 // Upload M3U file for a device
-router.post('/devices/:mac/playlists/upload', upload.single('file'), (req, res) => {
+router.post('/devices/:mac/playlists/upload', upload.single('file'), async (req, res) => {
   const { mac } = req.params;
   const { name, epg_url } = req.body;
   const resellerId = req.user.id;
@@ -568,7 +587,7 @@ router.post('/devices/:mac/playlists/upload', upload.single('file'), (req, res) 
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
     .get(formattedMac, resellerId);
   
   if (!device) {
@@ -576,8 +595,9 @@ router.post('/devices/:mac/playlists/upload', upload.single('file'), (req, res) 
   }
 
   // Check playlist limit
-  const playlistCount = db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
-    .get(device.id).count;
+  const playlistCountRow = await db.prepare('SELECT COUNT(*) as count FROM playlists WHERE device_id = ?')
+    .get(device.id);
+  const playlistCount = Number(playlistCountRow?.count || 0);
   
   if (playlistCount >= 5) {
     return res.status(400).json({ error: 'Limite de 5 playlists atteinte' });
@@ -586,10 +606,10 @@ router.post('/devices/:mac/playlists/upload', upload.single('file'), (req, res) 
   const playlistUrl = `/uploads/${req.file.filename}`;
 
   // Deactivate all existing playlists for this device
-  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+  await db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
 
   // Insert new playlist as active
-  const result = db.prepare(`
+  const result = await db.prepare(`
     INSERT INTO playlists (device_id, name, playlist_type, playlist_url, epg_url, is_active)
     VALUES (?, ?, 'm3u', ?, ?, 1)
   `).run(device.id, name || `Playlist ${Date.now()}`, playlistUrl, epg_url || null);
@@ -597,13 +617,13 @@ router.post('/devices/:mac/playlists/upload', upload.single('file'), (req, res) 
   res.json({
     success: true,
     message: 'Fichier M3U uploadé et playlist ajoutée',
-    playlist_id: result.lastInsertRowid,
+    playlist_id: Number(result?.lastInsertRowid || 0),
     filename: req.file.filename
   });
 });
 
 // Set a playlist as active (switch between playlists)
-router.put('/devices/:mac/playlists/:playlistId/activate', (req, res) => {
+router.put('/devices/:mac/playlists/:playlistId/activate', async (req, res) => {
   const { mac, playlistId } = req.params;
   const resellerId = req.user.id;
 
@@ -615,7 +635,7 @@ router.put('/devices/:mac/playlists/:playlistId/activate', (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
     .get(formattedMac, resellerId);
   
   if (!device) {
@@ -623,7 +643,7 @@ router.put('/devices/:mac/playlists/:playlistId/activate', (req, res) => {
   }
 
   // Verify playlist belongs to this device
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
+  const playlist = await db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
     .get(playlistId, device.id);
 
   if (!playlist) {
@@ -631,10 +651,10 @@ router.put('/devices/:mac/playlists/:playlistId/activate', (req, res) => {
   }
 
   // Deactivate all playlists for this device
-  db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
+  await db.prepare('UPDATE playlists SET is_active = 0 WHERE device_id = ?').run(device.id);
 
   // Activate the selected playlist
-  db.prepare('UPDATE playlists SET is_active = 1 WHERE id = ?').run(playlistId);
+  await db.prepare('UPDATE playlists SET is_active = 1 WHERE id = ?').run(playlistId);
 
   res.json({
     success: true,
@@ -643,7 +663,7 @@ router.put('/devices/:mac/playlists/:playlistId/activate', (req, res) => {
 });
 
 // Delete a playlist
-router.delete('/devices/:mac/playlists/:playlistId', (req, res) => {
+router.delete('/devices/:mac/playlists/:playlistId', async (req, res) => {
   const { mac, playlistId } = req.params;
   const resellerId = req.user.id;
 
@@ -655,7 +675,7 @@ router.delete('/devices/:mac/playlists/:playlistId', (req, res) => {
   }
 
   // Check device belongs to reseller
-  const device = db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
     .get(formattedMac, resellerId);
   
   if (!device) {
@@ -663,7 +683,7 @@ router.delete('/devices/:mac/playlists/:playlistId', (req, res) => {
   }
 
   // Verify playlist belongs to this device
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
+  const playlist = await db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
     .get(playlistId, device.id);
 
   if (!playlist) {
@@ -671,11 +691,11 @@ router.delete('/devices/:mac/playlists/:playlistId', (req, res) => {
   }
 
   // Delete the playlist
-  db.prepare('DELETE FROM playlists WHERE id = ?').run(playlistId);
+  await db.prepare('DELETE FROM playlists WHERE id = ?').run(playlistId);
 
   // If this was the active playlist, activate the most recent one
   if (playlist.is_active === 1) {
-    const latestPlaylist = db.prepare(`
+    const latestPlaylist = await db.prepare(`
       SELECT id FROM playlists 
       WHERE device_id = ? 
       ORDER BY created_at DESC 
@@ -683,7 +703,7 @@ router.delete('/devices/:mac/playlists/:playlistId', (req, res) => {
     `).get(device.id);
 
     if (latestPlaylist) {
-      db.prepare('UPDATE playlists SET is_active = 1 WHERE id = ?').run(latestPlaylist.id);
+      await db.prepare('UPDATE playlists SET is_active = 1 WHERE id = ?').run(latestPlaylist.id);
     }
   }
 
