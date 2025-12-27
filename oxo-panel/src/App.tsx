@@ -9,10 +9,12 @@ import { ResellersPage } from './pages/admin/ResellersPage';
 import { AdminDevicesPage } from './pages/admin/DevicesPage';
 import { AdminTransactionsPage } from './pages/admin/TransactionsPage';
 import { SellerContactsPage } from './pages/admin/SellerContactsPage';
+import { SellerRequestsPage } from './pages/admin/SellerRequestsPage';
 
 // Reseller pages
 import { ResellerDashboardPage } from './pages/reseller/DashboardPage';
 import { ResellerDevicesPage } from './pages/reseller/DevicesPage';
+import { PlaylistsPage } from './pages/reseller/PlaylistsPage';
 import { ActivatePage } from './pages/reseller/ActivatePage';
 import { ResellerTransactionsPage } from './pages/reseller/TransactionsPage';
 
@@ -95,6 +97,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/seller-requests"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <SellerRequestsPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Reseller routes */}
         <Route
@@ -110,6 +120,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['reseller']}>
               <ResellerDevicesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reseller/devices/:mac/playlists"
+          element={
+            <ProtectedRoute allowedRoles={['reseller']}>
+              <PlaylistsPage />
             </ProtectedRoute>
           }
         />

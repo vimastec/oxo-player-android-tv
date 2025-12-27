@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Tv, Upload, Link, X, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, Tv, Upload, Link, X, CheckCircle, List } from 'lucide-react';
 import { resellerApi } from '../../services/api';
 
 interface Device {
@@ -16,6 +17,7 @@ interface Device {
 }
 
 export function ResellerDevicesPage() {
+  const navigate = useNavigate();
   const [devices, setDevices] = useState<Device[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
@@ -196,13 +198,23 @@ export function ResellerDevicesPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleOpenPlaylistModal(device)}
-                  className="btn btn-secondary w-full mt-4"
-                >
-                  <Upload className="w-4 h-4" />
-                  {device.playlist_url || device.xtream_host ? 'Modifier playlist' : 'Ajouter playlist'}
-                </button>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => handleOpenPlaylistModal(device)}
+                    className="btn btn-secondary flex-1"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {device.playlist_url || device.xtream_host ? 'Modifier' : 'Ajouter'}
+                  </button>
+                  <button
+                    onClick={() => navigate(`/reseller/devices/${device.mac_address}/playlists`)}
+                    className="btn btn-primary flex-1"
+                    title="Gérer toutes les playlists"
+                  >
+                    <List className="w-4 h-4" />
+                    Playlists
+                  </button>
+                </div>
               </div>
             );
           })}

@@ -69,6 +69,13 @@ export const adminApi = {
   updateSellerContact: (id: number, data: { name?: string; city?: string; phone?: string; email?: string; address?: string; is_active?: boolean }) =>
     api.put(`/admin/seller-contacts/${id}`, data),
   deleteSellerContact: (id: number) => api.delete(`/admin/seller-contacts/${id}`),
+  
+  // Seller Requests (people wanting to become resellers)
+  getSellerRequests: () => api.get('/admin/seller-requests'),
+  getSellerRequestsCount: () => api.get('/admin/seller-requests/count'),
+  updateSellerRequest: (id: number, data: { status: string }) =>
+    api.put(`/admin/seller-requests/${id}`, data),
+  deleteSellerRequest: (id: number) => api.delete(`/admin/seller-requests/${id}`),
 };
 
 // Reseller
@@ -77,8 +84,8 @@ export const resellerApi = {
   
   // Devices
   getDevices: () => api.get('/reseller/devices'),
-  activateDevice: (mac_address: string) =>
-    api.post('/reseller/activate', { mac_address }),
+  activateDevice: (mac_address: string, force_extend = false) =>
+    api.post('/reseller/activate', { mac_address, force_extend }),
   setPlaylistUrl: (mac: string, url: string) =>
     api.put(`/reseller/devices/${mac}/playlist-url`, { url }),
   setXtreamCredentials: (mac: string, host: string, username: string, password: string) =>
@@ -90,6 +97,27 @@ export const resellerApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  
+  // Multi-Playlist Management (NEW)
+  getDevicePlaylists: (mac: string) => 
+    api.get(`/reseller/devices/${mac}/playlists`),
+  addDeviceM3UPlaylist: (mac: string, name: string, playlist_url: string, epg_url?: string) =>
+    api.post(`/reseller/devices/${mac}/playlists/m3u`, { name, playlist_url, epg_url }),
+  addDeviceXtreamPlaylist: (mac: string, name: string, host: string, username: string, password: string, epg_url?: string) =>
+    api.post(`/reseller/devices/${mac}/playlists/xtream`, { name, host, username, password, epg_url }),
+  uploadDevicePlaylist: (mac: string, name: string, file: File, epg_url?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', name);
+    if (epg_url) formData.append('epg_url', epg_url);
+    return api.post(`/reseller/devices/${mac}/playlists/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  activateDevicePlaylist: (mac: string, playlistId: number) =>
+    api.put(`/reseller/devices/${mac}/playlists/${playlistId}/activate`),
+  deleteDevicePlaylist: (mac: string, playlistId: number) =>
+    api.delete(`/reseller/devices/${mac}/playlists/${playlistId}`),
   
   // Transactions
   getTransactions: () => api.get('/reseller/transactions'),
