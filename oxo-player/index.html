@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0a0a0f" />
+    
+    <!-- Désactiver le mode curseur Samsung -->
+    <meta name="x-spatial-navigation-enabled" content="true" />
+    
+    <title>OXO Player</title>
+    
+    <!-- Désactiver le curseur et activer la navigation directionnelle -->
+    <style>
+      /* Force la navigation spatiale (sans curseur) */
+      * {
+        -webkit-user-select: none;
+        user-select: none;
+        cursor: default !important;
+      }
+      
+      /* Cache le curseur complètement */
+      body {
+        cursor: none !important;
+      }
+      
+      /* Navigation spatiale pour Samsung TV */
+      :focus {
+        outline: 3px solid #dc2626;
+        outline-offset: 4px;
+      }
+      
+      /* Tous les éléments cliquables doivent avoir tabindex */
+      button, a, [role="button"], .clickable {
+        cursor: pointer !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Script pour activer la navigation directionnelle Samsung -->
+    <script>
+      (function() {
+        // Activer la navigation spatiale (sans curseur)
+        try {
+          // API Samsung Common (TV 2014)
+          if (typeof webapis !== 'undefined' && webapis.tv) {
+            console.log('Samsung WebAPI detected');
+            // Désactiver le curseur
+            if (webapis.tv.info) {
+              webapis.tv.info.getVersion();
+            }
+          }
+          
+          // Force la navigation spatiale CSS
+          document.documentElement.style.cssText = 'overflow: hidden; -webkit-user-select: none;';
+          
+          // Empêcher le comportement par défaut du curseur
+          window.addEventListener('load', function() {
+            // Cacher le curseur
+            document.body.style.cursor = 'none';
+            
+            // NE PAS BLOQUER les touches - laisser Samsung gérer la navigation !
+            
+            // Focus automatique sur le premier élément navigable
+            setTimeout(function() {
+              var firstFocusable = document.querySelector('[tabindex="1"]');
+              if (firstFocusable) {
+                firstFocusable.focus();
+              }
+            }, 500);
+          });
+          
+        } catch (e) {
+          console.error('TV init error:', e);
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="16dp"
+    android:focusable="true"
+    android:clickable="true"
+    android:background="@drawable/profile_focus_border">
+
+    <!-- Profile Avatar -->
+    <FrameLayout
+        android:layout_width="120dp"
+        android:layout_height="120dp">
+
+        <ImageView
+            android:id="@+id/profileAvatar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:src="@drawable/avatar_1" />
+
+        <!-- Kids Badge -->
+        <TextView
+            android:id="@+id/kidsBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:text="ENFANT"
+            android:textColor="@android:color/white"
+            android:textSize="8sp"
+            android:textStyle="bold"
+            android:background="@color/accent_yellow"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:visibility="gone" />
+
+        <!-- Lock Icon (shown when PIN is set) -->
+        <ImageView
+            android:id="@+id/lockIcon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="4dp"
+            android:src="@android:drawable/ic_lock_lock"
+            android:tint="@android:color/white"
+            android:background="@drawable/circle_background_primary"
+            android:padding="4dp"
+            android:visibility="gone" />
+
+        <!-- Edit Icon (shown in edit mode) -->
+        <ImageView
+            android:id="@+id/editIcon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center"
+            android:src="@android:drawable/ic_menu_edit"
+            android:tint="@android:color/white"
+            android:background="@drawable/circle_background"
+            android:padding="6dp"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <!-- Profile Name -->
+    <TextView
+        android:id="@+id/profileName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Profil"
+        android:textColor="@color/light_gray"
+        android:textSize="16sp"
+        android:layout_marginTop="12dp"
+        android:maxWidth="120dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:gravity="center" />
+
+</LinearLayout>
+

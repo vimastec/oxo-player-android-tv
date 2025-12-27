@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:background="@drawable/dialog_item_background"
+    android:focusable="true"
+    android:clickable="true"
+    android:gravity="center_vertical">
+
+    <!-- Episode thumbnail -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="160dp"
+        android:layout_height="90dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="4dp"
+        android:layout_marginEnd="12dp">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:id="@+id/episode_thumbnail"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@drawable/placeholder_poster" />
+
+            <!-- Play indicator for current episode -->
+            <ImageView
+                android:id="@+id/play_indicator"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center"
+                android:src="@android:drawable/ic_media_play"
+                android:tint="@android:color/white"
+                android:background="@drawable/play_indicator_bg"
+                android:padding="6dp"
+                android:visibility="gone" />
+
+        </FrameLayout>
+
+    </androidx.cardview.widget.CardView>
+
+    <!-- Episode info -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- Episode number and name -->
+        <TextView
+            android:id="@+id/episode_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="E1: Episode Name"
+            android:textColor="@android:color/white"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <!-- Episode info (duration, rating) -->
+        <TextView
+            android:id="@+id/episode_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="45 min"
+            android:textColor="@color/light_gray"
+            android:textSize="12sp" />
+
+        <!-- Episode plot -->
+        <TextView
+            android:id="@+id/episode_plot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Episode description..."
+            android:textColor="@color/light_gray"
+            android:textSize="12sp"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+</LinearLayout>
+

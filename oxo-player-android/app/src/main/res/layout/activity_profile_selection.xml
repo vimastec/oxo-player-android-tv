@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_dark">
+
+    <!-- Background gradient -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/home_background" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Qui est-ce ?"
+            android:textColor="@android:color/white"
+            android:textSize="36sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="48dp" />
+
+        <!-- Profiles Grid -->
+        <LinearLayout
+            android:id="@+id/profilesContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- Profile slots will be added dynamically -->
+
+        </LinearLayout>
+
+        <!-- Edit Profiles Button -->
+        <Button
+            android:id="@+id/editProfilesButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Gérer les profils"
+            android:textColor="@color/light_gray"
+            android:background="@android:color/transparent"
+            android:layout_marginTop="48dp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- Create Profile Dialog Overlay -->
+    <FrameLayout
+        android:id="@+id/createProfileOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="400dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            app:cardBackgroundColor="@color/surface_dark"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:id="@+id/dialogTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Créer un profil"
+                    android:textColor="@android:color/white"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="24dp" />
+
+                <!-- Avatar Selection -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Choisir un avatar"
+                    android:textColor="@color/light_gray"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="12dp" />
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:layout_marginBottom="24dp">
+
+                    <LinearLayout
+                        android:id="@+id/avatarSelectionContainer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal" />
+
+                </HorizontalScrollView>
+
+                <!-- Profile Name Input -->
+                <EditText
+                    android:id="@+id/profileNameInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:hint="Nom du profil"
+                    android:textColor="@android:color/white"
+                    android:textColorHint="@color/light_gray"
+                    android:background="@drawable/edit_text_background"
+                    android:paddingHorizontal="16dp"
+                    android:inputType="textPersonName"
+                    android:maxLength="20"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Kids Profile Checkbox -->
+                <CheckBox
+                    android:id="@+id/kidsProfileCheckbox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Profil enfant"
+                    android:textColor="@color/light_gray"
+                    android:buttonTint="@color/primary"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- PIN Code Section -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="24dp">
+
+                    <CheckBox
+                        android:id="@+id/pinEnabledCheckbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Code PIN"
+                        android:textColor="@color/light_gray"
+                        android:buttonTint="@color/primary" />
+
+                    <EditText
+                        android:id="@+id/pinCodeInput"
+                        android:layout_width="100dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="16dp"
+                        android:hint="4 chiffres"
+                        android:textColor="@android:color/white"
+                        android:textColorHint="@color/light_gray"
+                        android:background="@drawable/edit_text_background"
+                        android:paddingHorizontal="12dp"
+                        android:inputType="numberPassword"
+                        android:maxLength="4"
+                        android:gravity="center"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+
+                <!-- Buttons -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="end">
+
+                    <Button
+                        android:id="@+id/cancelButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:text="Annuler"
+                        android:textColor="@color/light_gray"
+                        android:background="@android:color/transparent"
+                        android:layout_marginEnd="16dp" />
+
+                    <Button
+                        android:id="@+id/saveButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:text="Enregistrer"
+                        android:textColor="@android:color/white"
+                        android:backgroundTint="@color/primary"
+                        android:paddingHorizontal="24dp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+    </FrameLayout>
+
+    <!-- PIN Input Dialog Overlay -->
+    <FrameLayout
+        android:id="@+id/pinInputOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <include
+            layout="@layout/dialog_pin_input"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center" />
+
+    </FrameLayout>
+
+</FrameLayout>
+

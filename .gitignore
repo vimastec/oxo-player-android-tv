@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.apk
+!public/downloads/*.apk
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pglite-debug.log
+
+# Android specific
+oxo-player-android/.gradle/
+oxo-player-android/app/build/
+oxo-player-android/build/
+oxo-player-android/local.properties
+oxo-player-android/*.jks
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+
+# Test coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+
