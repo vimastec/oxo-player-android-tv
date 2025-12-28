@@ -156,7 +156,7 @@ app.get('/api/health', (req, res) => {
 // DEBUG: Check devices trial status (TEMPORARY - remove after verification)
 app.get('/api/debug/devices-trial', async (req, res) => {
   try {
-    const devices = await db.prepare(`
+    const devices = await db.db.prepare(`
       SELECT mac_address, status, trial_start, expiration_date, last_seen, created_at
       FROM devices 
       ORDER BY created_at DESC 
