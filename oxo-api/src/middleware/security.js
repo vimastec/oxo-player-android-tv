@@ -26,6 +26,12 @@ const ALLOWED_PACKAGES = [
   'com.oxoplayer.tv',
 ];
 
+// Allowed APK signatures (SHA-256 fingerprints)
+// Get this by running: keytool -list -v -keystore your-key.jks -alias your-alias
+const ALLOWED_SIGNATURES = [
+  'CC:47:65:7E:A6:BC:67:08:90:DB:4A:E2:FB:00:A3:17:7E:0D:F7:81:23:79:D7:7C:91:3A:B3:BA:25:AD:E0:7C',
+];
+
 // Minimum app version (major.minor.patch as number: 1.0.0 = 100)
 const MIN_APP_VERSION = 100; // 1.0.0
 
@@ -213,11 +219,20 @@ function verifyAppHeaders(req, res, next) {
     }
   }
   
-  // Log app signature for debugging (in production, verify against known signature)
+  // Verify app signature against known APK signatures
+  // TODO: Activer cette vérification quand l'application sera finalisée
   if (appSignature) {
-    // TODO: Add signature verification against known APK signature
-    // For now, just log it
-    console.log(`App signature: ${appSignature.substring(0, 20)}...`);
+    if (!ALLOWED_SIGNATURES.includes(appSignature)) {
+      // MODE DÉVELOPPEMENT: Log seulement, ne pas bloquer
+      console.warn(`⚠️ Unknown APK signature (dev mode - not blocking): ${appSignature.substring(0, 30)}...`);
+      // Décommenter les lignes suivantes pour activer le blocage en production:
+      // return res.status(403).json({ 
+      //   error: 'Application non autorisée',
+      //   message: 'Signature APK invalide. Téléchargez l\'application officielle.'
+      // });
+    } else {
+      console.log(`✅ Valid APK signature verified`);
+    }
   }
   
   next();
@@ -254,4 +269,6 @@ module.exports = {
   requireSecureConfig,
   ALLOWED_ORIGINS,
 };
+
+
 

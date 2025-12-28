@@ -153,43 +153,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'OXO API is running' });
 });
 
-// DEBUG: Check devices trial status (TEMPORARY - remove after verification)
-app.get('/api/debug/devices-trial', async (req, res) => {
-  try {
-    const devices = await db.db.prepare(`
-      SELECT mac_address, status, trial_start, expiration_date, last_seen, created_at
-      FROM devices 
-      ORDER BY created_at DESC 
-      LIMIT 15
-    `).all();
-    
-    const now = new Date();
-    const result = devices.map(d => {
-      let daysRemaining = 0;
-      if (d.expiration_date) {
-        const expDate = new Date(d.expiration_date);
-        daysRemaining = Math.ceil((expDate - now) / (1000 * 60 * 60 * 24));
-      }
-      return {
-        mac: d.mac_address,
-        status: d.status,
-        trial_start: d.trial_start,
-        expiration: d.expiration_date,
-        days_remaining: daysRemaining,
-        last_seen: d.last_seen,
-        created: d.created_at
-      };
-    });
-    
-    res.json({ 
-      server_time: now.toISOString(),
-      devices: result 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ============================================
 // SERVER INITIALIZATION
 // ============================================
