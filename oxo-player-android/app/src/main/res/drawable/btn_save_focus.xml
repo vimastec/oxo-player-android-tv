@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Focused state: bright orange border around primary button -->
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <stroke 
+                android:width="4dp" 
+                android:color="#FF9800" />
+            <corners android:radius="8dp" />
+            <solid android:color="@color/primary" />
+        </shape>
+    </item>
+    <!-- Pressed state -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <stroke 
+                android:width="2dp" 
+                android:color="#FFFFFF" />
+            <corners android:radius="8dp" />
+            <solid android:color="#E6A700" />
+        </shape>
+    </item>
+    <!-- Default state: primary color -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="8dp" />
+            <solid android:color="@color/primary" />
+        </shape>
+    </item>
+</selector>
+
+
+
+
+
