@@ -187,22 +187,23 @@ app.get('/api/health', (req, res) => {
         console.log('Portal migration already applied or failed:', err.message);
       }
 
-      try {
-        const appVersionMigration = require('./migrations/add_app_versions');
-        appVersionMigration.runMigration();
-      } catch (err) {
-        console.log('App version migration already applied or failed:', err.message);
-      }
+      // TEMPORAIREMENT DÉSACTIVÉ
+      // try {
+      //   const appVersionMigration = require('./migrations/add_app_versions');
+      //   appVersionMigration.runMigration();
+      // } catch (err) {
+      //   console.log('App version migration already applied or failed:', err.message);
+      // }
     } else {
       console.log('✅ PostgreSQL detected - running PostgreSQL migrations');
       
-      // Run PostgreSQL migrations
-      try {
-        const appVersionMigration = require('./migrations/add_app_versions');
-        await appVersionMigration.runMigration();
-      } catch (err) {
-        console.log('App version migration already applied or failed:', err.message);
-      }
+      // TEMPORAIREMENT DÉSACTIVÉ
+      // try {
+      //   const appVersionMigration = require('./migrations/add_app_versions');
+      //   await appVersionMigration.runMigration();
+      // } catch (err) {
+      //   console.log('App version migration already applied or failed:', err.message);
+      // }
     }
 
     app.listen(PORT, () => {
