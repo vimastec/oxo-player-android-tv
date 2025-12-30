@@ -13,7 +13,8 @@ const adminRoutes = require('./routes/admin');
 const resellerRoutes = require('./routes/reseller');
 const deviceRoutes = require('./routes/device');
 const portalRoutes = require('./routes/portal');
-const appVersionRoutes = require('./routes/appVersion');
+// TEMPORAIREMENT DÉSACTIVÉ - à réactiver après correction
+// const appVersionRoutes = require('./routes/appVersion');
 
 // Security middleware
 const {
@@ -150,7 +151,8 @@ app.use('/api/portal/login', loginLimiter);
 app.use('/api/portal', portalRoutes);
 
 // App Version routes (for OTA updates)
-app.use('/api/app-version', appVersionRoutes);
+// TEMPORAIREMENT DÉSACTIVÉ
+// app.use('/api/app-version', appVersionRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
