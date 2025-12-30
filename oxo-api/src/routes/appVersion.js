@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db, usePostgres } = require('../database');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { verifyToken, isAdmin } = require('../middleware/auth');
 
 // ============================================
 // PUBLIC ENDPOINT - Get latest app version
@@ -100,7 +100,7 @@ router.get('/check', async (req, res) => {
 // ============================================
 // ADMIN ENDPOINT - Create new version
 // ============================================
-router.post('/', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/', verifyToken, isAdmin, async (req, res) => {
   try {
     const { versionCode, versionName, downloadUrl, changelog, isMandatory, minSupportedVersion } = req.body;
 
@@ -139,7 +139,7 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
 // ============================================
 // ADMIN ENDPOINT - Get all versions
 // ============================================
-router.get('/all', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/all', verifyToken, isAdmin, async (req, res) => {
   try {
     const versions = await db.prepare(`
       SELECT id, version_code, version_name, download_url, changelog, is_mandatory, min_supported_version, created_at
@@ -169,7 +169,7 @@ router.get('/all', authenticateToken, requireAdmin, async (req, res) => {
 // ============================================
 // ADMIN ENDPOINT - Delete version
 // ============================================
-router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
+router.delete('/:id', verifyToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
