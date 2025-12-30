@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -29,7 +30,9 @@ android {
 
     buildTypes {
         release {
+            // ProGuard disabled - causes Gson TypeToken issues
             isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -115,5 +118,9 @@ dependencies {
     
     // QR Code generation (ZXing)
     implementation("com.google.zxing:core:3.5.2")
+    
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
 }
 

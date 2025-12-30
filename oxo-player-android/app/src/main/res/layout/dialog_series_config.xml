@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/dark_gray"
+    android:padding="24dp">
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚙️ Configuration Série"
+        android:textColor="@android:color/white"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="20dp" />
+
+    <!-- Skip Intro Section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sauter l'intro à :"
+        android:textColor="@color/gray"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+
+        <EditText
+            android:id="@+id/skipIntroMinutes"
+            android:layout_width="60dp"
+            android:layout_height="48dp"
+            android:background="@drawable/edit_text_background"
+            android:inputType="number"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:hint="2"
+            android:textColorHint="@color/gray" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=" min "
+            android:textColor="@android:color/white"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/skipIntroSeconds"
+            android:layout_width="60dp"
+            android:layout_height="48dp"
+            android:background="@drawable/edit_text_background"
+            android:inputType="number"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:hint="0"
+            android:textColorHint="@color/gray" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=" sec"
+            android:textColor="@android:color/white"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- Next Episode Section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Épisode suivant avant la fin :"
+        android:textColor="@color/gray"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="20dp">
+
+        <EditText
+            android:id="@+id/nextEpisodeMinutes"
+            android:layout_width="60dp"
+            android:layout_height="48dp"
+            android:background="@drawable/edit_text_background"
+            android:inputType="number"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:hint="1"
+            android:textColorHint="@color/gray" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=" min "
+            android:textColor="@android:color/white"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/nextEpisodeSeconds"
+            android:layout_width="60dp"
+            android:layout_height="48dp"
+            android:background="@drawable/edit_text_background"
+            android:inputType="number"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:hint="0"
+            android:textColorHint="@color/gray" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=" sec"
+            android:textColor="@android:color/white"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <!-- Scope RadioGroup -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Appliquer à :"
+        android:textColor="@color/gray"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <RadioGroup
+        android:id="@+id/scopeRadioGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="24dp">
+
+        <RadioButton
+            android:id="@+id/radioAllSeasons"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Toutes les saisons"
+            android:textColor="@android:color/white"
+            android:textSize="15sp"
+            android:buttonTint="@color/primary"
+            android:checked="true" />
+
+        <RadioButton
+            android:id="@+id/radioCurrentSeason"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Juste cette saison"
+            android:textColor="@android:color/white"
+            android:textSize="15sp"
+            android:buttonTint="@color/primary" />
+    </RadioGroup>
+
+    <!-- Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/btnReset"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="Réinitialiser"
+            android:textColor="@color/gray"
+            android:backgroundTint="@android:color/transparent"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="Annuler"
+            android:textColor="@android:color/white"
+            android:backgroundTint="@color/dark_gray"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="Enregistrer"
+            android:textColor="@android:color/black"
+            android:backgroundTint="@color/primary" />
+    </LinearLayout>
+
+</LinearLayout>
+

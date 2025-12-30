@@ -347,6 +347,17 @@ class HomeActivity : AppCompatActivity() {
             putExtra("TITLE", progress.title)
             putExtra("TYPE", progress.type)
             putExtra("COVER", progress.cover) // Pass cover image
+            
+            // Pass series metadata if this is a series
+            if (progress.type == "SERIES") {
+                putExtra("SERIES_ID", progress.seriesId)
+                putExtra("SERIES_NAME", progress.seriesName)
+                putExtra("CURRENT_SEASON", progress.seasonNumber ?: 1)
+                putExtra("CURRENT_EPISODE_ID", progress.episodeId)
+                putExtra("SEASONS_JSON", progress.seasonsJson)
+                
+                android.util.Log.d(TAG, "Passing series metadata - ID: ${progress.seriesId}, Season: ${progress.seasonNumber}, EpisodeId: ${progress.episodeId}")
+            }
         }
         startActivity(intent)
     }

@@ -4,10 +4,16 @@
  * - Create playlists table for multiple playlists per device
  */
 
-const { db } = require('../database');
+const { db, usePostgres } = require('../database');
 
 function runMigration() {
   console.log('🔄 Running portal support migration...');
+
+  // PostgreSQL already has device_key + playlists table in the schema (created in database.js)
+  if (usePostgres) {
+    console.log('✅ PostgreSQL detected - skipping SQLite migration add_portal_support');
+    return;
+  }
 
   try {
     // Check if device_key column exists

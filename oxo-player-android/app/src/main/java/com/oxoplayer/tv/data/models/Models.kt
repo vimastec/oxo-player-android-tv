@@ -242,6 +242,19 @@ data class PlaybackProgress(
     val timestamp: Long
 )
 
+/**
+ * Series Playback Configuration
+ * Customizable settings for intro skip and next episode timing
+ */
+data class SeriesPlaybackConfig(
+    val seriesId: String,
+    val seasonNumber: Int?, // null = applies to all seasons
+    val skipIntroShowAtMs: Long, // When to show "Skip Intro" button (e.g., 10000ms = 10 seconds)
+    val skipIntroJumpToMs: Long, // Where to jump when skipping intro (e.g., 120000ms = 2 minutes)
+    val nextEpisodeThresholdMs: Long, // When to show "Next Episode" button before end (e.g., 60000ms = 1 minute)
+    val applyToAllSeasons: Boolean // If true, applies to all seasons of this series
+)
+
 
 
 

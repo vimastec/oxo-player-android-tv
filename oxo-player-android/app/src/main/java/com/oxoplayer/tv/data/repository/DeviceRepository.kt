@@ -16,32 +16,64 @@ class DeviceRepository(private val context: Context) {
     private val preferencesManager = com.oxoplayer.tv.data.preferences.PreferencesManager(context)
     
     /**
-     * Get device MAC address - PERSISTENT across reinstalls
-     * Once generated, the MAC address is saved and reused forever
+     * Get device MAC address - PERSISTENT across reinstalls using Android ID
+     * 
+     * Priority:
+     * 1. If user already has a saved MAC (migration), keep it
+     * 2. Otherwise, generate from Android ID (persists across reinstalls)
      */
     fun getMacAddress(): String {
-        // IMPORTANT: Check if we already have a saved MAC address
+        // Check if we have a saved MAC from before (migration for existing users)
         val savedMac = preferencesManager.macAddress
         if (!savedMac.isNullOrEmpty()) {
-            // Reuse the previously saved MAC address
             return savedMac
         }
         
-        // Generate new MAC address (first install only)
-        val newMac = generateMacAddress()
+        // Generate MAC from Android ID (persistent across reinstalls)
+        val mac = generateMacFromAndroidId()
         
-        // Save it permanently to survive reinstalls
-        preferencesManager.macAddress = newMac
+        // Save it for consistency
+        preferencesManager.macAddress = mac
         
-        return newMac
+        return mac
     }
     
     /**
-     * Generate MAC address from device hardware
+     * Generate MAC address from Android ID
+     * This is PERSISTENT even after app uninstall/reinstall
+     * Only changes on factory reset or Google account change
      */
-    private fun generateMacAddress(): String {
+    private fun generateMacFromAndroidId(): String {
+        // Get Android ID (persistent identifier)
+        val androidId = android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ANDROID_ID
+        )
+        
+        if (!androidId.isNullOrEmpty() && androidId.length >= 12) {
+            // Convert Android ID to MAC format (take first 12 chars)
+            val mac = androidId.take(12).uppercase().chunked(2).joinToString(":")
+            android.util.Log.d("DeviceRepository", "Generated MAC from Android ID: $mac")
+            return mac
+        }
+        
+        // Fallback: try to get real hardware MAC (rare case)
+        val hardwareMac = getHardwareMacAddress()
+        if (hardwareMac != null) {
+            return hardwareMac
+        }
+        
+        // Last resort: generate random but save it
+        val randomMac = generateRandomMac()
+        android.util.Log.w("DeviceRepository", "Using random MAC as fallback: $randomMac")
+        return randomMac
+    }
+    
+    /**
+     * Try to get real hardware MAC address (works on some devices)
+     */
+    private fun getHardwareMacAddress(): String? {
         try {
-            // Try to get real MAC address
             val interfaces = NetworkInterface.getNetworkInterfaces()
             while (interfaces.hasMoreElements()) {
                 val networkInterface = interfaces.nextElement()
@@ -61,18 +93,17 @@ class DeviceRepository(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("DeviceRepository", "Error getting hardware MAC", e)
         }
-        
-        // Fallback: Use Android ID as pseudo-MAC
-        val androidId = android.provider.Settings.Secure.getString(
-            context.contentResolver,
-            android.provider.Settings.Secure.ANDROID_ID
-        ) ?: UUID.randomUUID().toString()
-        
-        // Convert Android ID to MAC format
-        val mac = androidId.take(12).chunked(2).joinToString(":")
-        return mac.uppercase()
+        return null
+    }
+    
+    /**
+     * Generate random MAC (last resort fallback)
+     */
+    private fun generateRandomMac(): String {
+        val uuid = UUID.randomUUID().toString().replace("-", "")
+        return uuid.take(12).uppercase().chunked(2).joinToString(":")
     }
     
     /**

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { RefreshCw, Loader2, AlertCircle, CheckCircle, Store, Users } from 'lucide-react';
 import { portalApi, Captcha } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
@@ -279,17 +279,22 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Buy activation link */}
-        <div className="text-center mt-6">
-          <p className="text-gray-500 text-sm mb-2">
-            Vous n'avez pas encore OXO Player ?
-          </p>
-          <button
-            onClick={() => navigate('/sellers')}
-            className="text-primary hover:text-primary-hover transition-colors font-medium"
+        {/* Links Section */}
+        <div className="mt-8 space-y-3">
+          <Link 
+            to="/sellers" 
+            className="flex items-center justify-center gap-2 text-gray-400 hover:text-primary transition-colors text-sm"
           >
-            🛒 Voir les points de vente
-          </button>
+            <Store className="w-4 h-4" />
+            Voir les points de vente
+          </Link>
+          <Link 
+            to="/sellers" 
+            className="flex items-center justify-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
+          >
+            <Users className="w-4 h-4" />
+            Rejoindre notre réseau de revendeurs
+          </Link>
         </div>
 
         {/* Footer */}

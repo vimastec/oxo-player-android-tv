@@ -48,9 +48,9 @@ export const adminApi = {
   
   // Resellers
   getResellers: () => api.get('/admin/resellers'),
-  createReseller: (data: { email: string; password: string; name: string; credits?: number }) =>
+  createReseller: (data: { email: string; password: string; name: string; credits?: number; allow_cross_reseller_activation?: boolean }) =>
     api.post('/admin/resellers', data),
-  updateReseller: (id: number, data: { name?: string; status?: string; password?: string }) =>
+  updateReseller: (id: number, data: { name?: string; status?: string; password?: string; allow_cross_reseller_activation?: boolean }) =>
     api.put(`/admin/resellers/${id}`, data),
   deleteReseller: (id: number) => api.delete(`/admin/resellers/${id}`),
   addCredits: (id: number, amount: number, description?: string) =>

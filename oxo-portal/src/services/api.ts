@@ -182,6 +182,18 @@ export const portalApi = {
     const response = await api.get('/portal/sellers');
     return response.data;
   },
+
+  // Submit a request to become a reseller
+  submitSellerRequest: async (data: {
+    name: string;
+    phone: string;
+    city: string;
+    quantity: number;
+    message?: string;
+  }): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/portal/seller-request', data);
+    return response.data;
+  },
 };
 
 export interface SellerContact {

@@ -4,6 +4,8 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
@@ -37,8 +39,14 @@ class ActivationActivity : AppCompatActivity() {
     private lateinit var qrCodeImage: ImageView
     private lateinit var changePlaylistButton: Button
     
+    // Auto-refresh system
+    private val refreshHandler = Handler(Looper.getMainLooper())
+    private var refreshRunnable: Runnable? = null
+    private var isAutoRefreshActive = false
+    
     companion object {
         private const val PORTAL_URL = "https://oxo-portal.web.app"
+        private const val AUTO_REFRESH_INTERVAL_MS = 10000L // 10 seconds
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +58,59 @@ class ActivationActivity : AppCompatActivity() {
         
         initViews()
         checkDeviceActivation()
+        startAutoRefresh()
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        stopAutoRefresh()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        stopAutoRefresh()
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        if (!isAutoRefreshActive) {
+            startAutoRefresh()
+        }
+    }
+    
+    /**
+     * Start automatic refresh every 10 seconds
+     */
+    private fun startAutoRefresh() {
+        if (isAutoRefreshActive) return
+        
+        isAutoRefreshActive = true
+        android.util.Log.d("ActivationActivity", "Auto-refresh started (every 10 seconds)")
+        
+        refreshRunnable = object : Runnable {
+            override fun run() {
+                android.util.Log.d("ActivationActivity", "Auto-refresh triggered")
+                checkDeviceActivation()
+                
+                // Schedule next refresh
+                if (isAutoRefreshActive) {
+                    refreshHandler.postDelayed(this, AUTO_REFRESH_INTERVAL_MS)
+                }
+            }
+        }
+        
+        // Start first refresh after 10 seconds
+        refreshHandler.postDelayed(refreshRunnable!!, AUTO_REFRESH_INTERVAL_MS)
+    }
+    
+    /**
+     * Stop automatic refresh
+     */
+    private fun stopAutoRefresh() {
+        isAutoRefreshActive = false
+        refreshRunnable?.let { refreshHandler.removeCallbacks(it) }
+        refreshRunnable = null
+        android.util.Log.d("ActivationActivity", "Auto-refresh stopped")
     }
     
     private fun initViews() {
@@ -151,29 +212,36 @@ class ActivationActivity : AppCompatActivity() {
                     "trial" -> {
                         showTrialStatus(registration.daysRemaining)
                         if (registration.hasPlaylist) {
-                            // Show change playlist button and auto-continue
+                            // Playlist configured! Stop auto-refresh and navigate
+                            stopAutoRefresh()
                             changePlaylistButton.visibility = View.VISIBLE
                             navigateToMain()
                         } else {
                             showNoPlaylist()
                             // Show change playlist button even without playlist
                             changePlaylistButton.visibility = View.VISIBLE
+                            // Keep auto-refresh active (waiting for playlist)
+                            android.util.Log.d("ActivationActivity", "Waiting for playlist (auto-refresh active)...")
                         }
                     }
                     "active" -> {
                         showActiveStatus(registration.daysRemaining)
                         if (registration.hasPlaylist) {
-                            // Show change playlist button and auto-continue
+                            // Playlist configured! Stop auto-refresh and navigate
+                            stopAutoRefresh()
                             changePlaylistButton.visibility = View.VISIBLE
                             navigateToMain()
                         } else {
                             showNoPlaylist()
                             // Show change playlist button even without playlist
                             changePlaylistButton.visibility = View.VISIBLE
+                            // Keep auto-refresh active (waiting for playlist)
+                            android.util.Log.d("ActivationActivity", "Waiting for playlist (auto-refresh active)...")
                         }
                     }
                     "expired" -> {
                         showExpiredStatus()
+                        // Keep auto-refresh active (waiting for renewal)
                     }
                     else -> {
                         showError("Statut inconnu")
@@ -189,7 +257,8 @@ class ActivationActivity : AppCompatActivity() {
     
     private fun showLoading() {
         progressBar.visibility = View.VISIBLE
-        statusText.text = "Vérification de l'appareil..."
+        val refreshStatus = if (isAutoRefreshActive) " 🔄" else ""
+        statusText.text = "Vérification de l'appareil...$refreshStatus"
         daysRemainingText.visibility = View.GONE
         retryButton.visibility = View.GONE
         continueButton.visibility = View.GONE
@@ -222,7 +291,8 @@ class ActivationActivity : AppCompatActivity() {
     }
     
     private fun showNoPlaylist() {
-        daysRemainingText.text = "${daysRemainingText.text}\n\n⚠️ Aucune playlist configurée.\nContactez votre revendeur."
+        val refreshInfo = if (isAutoRefreshActive) "\n\n🔄 Vérification automatique toutes les 10s..." else ""
+        daysRemainingText.text = "${daysRemainingText.text}\n\n⚠️ Aucune playlist configurée.\nContactez votre revendeur.$refreshInfo"
     }
     
     private fun showError(message: String) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, CheckCircle, Loader2, Upload, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle, Loader2, Upload, Link as LinkIcon, Tv, X } from 'lucide-react';
 import { resellerApi } from '../../services/api';
 
 interface Playlist {
@@ -239,76 +239,105 @@ export function PlaylistsPage() {
 
       {/* Add Playlist Modal */}
       {showAddModal && (
-        <div className="modal modal-open">
-          <div className="modal-box max-w-2xl">
-            <h3 className="font-bold text-lg mb-4">Ajouter une playlist</h3>
-
-            {/* Type Selection */}
-            <div className="tabs tabs-boxed mb-4">
+        <div className="modal-overlay" onClick={() => !isSubmitting && setShowAddModal(false)}>
+          <div className="modal-content p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">Ajouter une playlist</h2>
               <button
-                className={`tab ${playlistType === 'm3u' ? 'tab-active' : ''}`}
-                onClick={() => setPlaylistType('m3u')}
+                onClick={() => setShowAddModal(false)}
+                className="p-2 hover:bg-card rounded-lg"
+                disabled={isSubmitting}
               >
-                <LinkIcon className="w-4 h-4 mr-2" />
-                URL M3U
-              </button>
-              <button
-                className={`tab ${playlistType === 'upload' ? 'tab-active' : ''}`}
-                onClick={() => setPlaylistType('upload')}
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Fichier M3U
-              </button>
-              <button
-                className={`tab ${playlistType === 'xtream' ? 'tab-active' : ''}`}
-                onClick={() => setPlaylistType('xtream')}
-              >
-                Xtream Code
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddPlaylist} className="space-y-4">
-              {/* Name Field (for all types) */}
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Nom de la playlist *</span>
+            <form onSubmit={handleAddPlaylist} className="space-y-6">
+              {/* Name Field */}
+              <div>
+                <label className="block text-sm font-medium text-muted mb-2">
+                  Nom de la playlist *
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ma Playlist"
-                  className="input input-bordered"
                   required
                 />
+              </div>
+
+              {/* Type Selection - Same style as DevicesPage */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Type de configuration</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPlaylistType('m3u')}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      playlistType === 'm3u'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <LinkIcon className="w-6 h-6 mx-auto mb-2" />
+                    <p className="font-semibold">M3U URL</p>
+                    <p className="text-xs text-muted mt-1">Lien playlist</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlaylistType('upload')}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      playlistType === 'upload'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <Upload className="w-6 h-6 mx-auto mb-2" />
+                    <p className="font-semibold">Fichier M3U</p>
+                    <p className="text-xs text-muted mt-1">Upload local</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlaylistType('xtream')}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      playlistType === 'xtream'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <Tv className="w-6 h-6 mx-auto mb-2" />
+                    <p className="font-semibold">Xtream Code</p>
+                    <p className="text-xs text-muted mt-1">Identifiants API</p>
+                  </button>
+                </div>
               </div>
 
               {/* M3U URL Fields */}
               {playlistType === 'm3u' && (
                 <>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">URL de la playlist M3U *</span>
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
+                      <LinkIcon className="w-4 h-4" />
+                      URL de la playlist M3U *
                     </label>
                     <input
                       type="url"
                       value={playlistUrl}
                       onChange={(e) => setPlaylistUrl(e.target.value)}
-                      placeholder="http://example.com/playlist.m3u"
-                      className="input input-bordered"
+                      placeholder="http://exemple.com/playlist.m3u"
                       required
                     />
                   </div>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">URL EPG (optionnel)</span>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">
+                      URL EPG (optionnel)
                     </label>
                     <input
                       type="url"
                       value={epgUrl}
                       onChange={(e) => setEpgUrl(e.target.value)}
-                      placeholder="http://example.com/epg.xml"
-                      className="input input-bordered"
+                      placeholder="http://exemple.com/epg.xml"
                     />
                   </div>
                 </>
@@ -317,28 +346,34 @@ export function PlaylistsPage() {
               {/* File Upload */}
               {playlistType === 'upload' && (
                 <>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">Fichier M3U *</span>
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
+                      <Upload className="w-4 h-4" />
+                      Fichier M3U *
                     </label>
-                    <input
-                      type="file"
-                      accept=".m3u,.m3u8,.txt"
-                      onChange={(e) => setFile(e.target.files?.[0] || null)}
-                      className="file-input file-input-bordered"
-                      required
-                    />
+                    <label className="block w-full p-8 border-2 border-dashed border-border rounded-xl text-center cursor-pointer hover:border-primary transition-colors">
+                      {file ? (
+                        <span className="text-primary">{file.name}</span>
+                      ) : (
+                        <span className="text-muted">Cliquez pour sélectionner un fichier</span>
+                      )}
+                      <input
+                        type="file"
+                        accept=".m3u,.m3u8,.txt"
+                        className="hidden"
+                        onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
                   </div>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">URL EPG (optionnel)</span>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">
+                      URL EPG (optionnel)
                     </label>
                     <input
                       type="url"
                       value={epgUrl}
                       onChange={(e) => setEpgUrl(e.target.value)}
-                      placeholder="http://example.com/epg.xml"
-                      className="input input-bordered"
+                      placeholder="http://exemple.com/epg.xml"
                     />
                   </div>
                 </>
@@ -347,79 +382,83 @@ export function PlaylistsPage() {
               {/* Xtream Code Fields */}
               {playlistType === 'xtream' && (
                 <>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">Serveur *</span>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">
+                      Host / Serveur *
                     </label>
                     <input
                       type="text"
                       value={xtreamHost}
                       onChange={(e) => setXtreamHost(e.target.value)}
-                      placeholder="example.com:8080"
-                      className="input input-bordered"
-                      required
+                      placeholder="exemple.com ou 123.45.67.89:8080"
                     />
+                    <p className="text-xs text-muted mt-1">
+                      Sans http:// - Exemple: server.com ou 12.34.56.78:25461
+                    </p>
                   </div>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">Nom d'utilisateur *</span>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">
+                      Username *
                     </label>
                     <input
                       type="text"
                       value={xtreamUsername}
                       onChange={(e) => setXtreamUsername(e.target.value)}
-                      placeholder="username"
-                      className="input input-bordered"
-                      required
+                      placeholder="username123"
                     />
                   </div>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">Mot de passe *</span>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">
+                      Password *
                     </label>
                     <input
-                      type="password"
+                      type="text"
                       value={xtreamPassword}
                       onChange={(e) => setXtreamPassword(e.target.value)}
-                      placeholder="password"
-                      className="input input-bordered"
-                      required
+                      placeholder="password123"
                     />
                   </div>
-                  <div className="form-control">
-                    <label className="label">
-                      <span className="label-text">URL EPG (optionnel)</span>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">
+                      URL EPG (optionnel)
                     </label>
                     <input
                       type="url"
                       value={epgUrl}
                       onChange={(e) => setEpgUrl(e.target.value)}
-                      placeholder="http://example.com/epg.xml"
-                      className="input input-bordered"
+                      placeholder="http://exemple.com/epg.xml"
                     />
+                  </div>
+                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-4">
+                    <p className="text-sm text-muted">
+                      ℹ️ Les identifiants Xtream Code sont fournis par votre fournisseur IPTV
+                    </p>
                   </div>
                 </>
               )}
 
-              <div className="modal-action">
+              <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="btn"
+                  className="btn btn-secondary flex-1"
                   disabled={isSubmitting}
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
-                  disabled={isSubmitting}
+                  disabled={
+                    isSubmitting ||
+                    !name ||
+                    (playlistType === 'm3u' && !playlistUrl) ||
+                    (playlistType === 'upload' && !file) ||
+                    (playlistType === 'xtream' && (!xtreamHost || !xtreamUsername || !xtreamPassword))
+                  }
+                  className="btn btn-primary flex-1"
                 >
                   {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Ajout...
-                    </>
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     'Ajouter'
                   )}
@@ -427,10 +466,6 @@ export function PlaylistsPage() {
               </div>
             </form>
           </div>
-          <div
-            className="modal-backdrop"
-            onClick={() => !isSubmitting && setShowAddModal(false)}
-          />
         </div>
       )}
     </div>

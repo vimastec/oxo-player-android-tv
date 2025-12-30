@@ -37,6 +37,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.WatchProgressManager
+import com.oxoplayer.tv.data.SeriesConfigManager
 import com.oxoplayer.tv.data.models.Episode
 import com.oxoplayer.tv.data.models.Season
 
@@ -72,6 +73,16 @@ class PlayerActivity : AppCompatActivity() {
     private var currentEpisodeId: String? = null
     private var seasons: List<Season> = emptyList()
     
+    // Skip Intro feature (Netflix-style)
+    private var skipIntroContainer: LinearLayout? = null
+    private var skipIntroCountdownProgress: ProgressBar? = null
+    private var skipIntroCountdownText: TextView? = null
+    private var isSkipIntroShowing = false
+    private var skipIntroCountdownSeconds = 10
+    private val skipIntroCountdownHandler = Handler(Looper.getMainLooper())
+    private var skipIntroCountdownRunnable: Runnable? = null
+    private var hasSkippedIntro = false // Track if intro was already shown/skipped
+    
     // Next Episode feature (Netflix-style)
     private var nextEpisodeContainer: LinearLayout? = null
     private var countdownProgress: ProgressBar? = null
@@ -84,7 +95,11 @@ class PlayerActivity : AppCompatActivity() {
     private var countdownRunnable: Runnable? = null
     private val positionCheckHandler = Handler(Looper.getMainLooper())
     private var positionCheckRunnable: Runnable? = null
-    private val NEXT_EPISODE_THRESHOLD_MS = 60000L // Show button 60 seconds (1 minute) before end
+    
+    // Configurable parameters (loaded from SeriesConfigManager)
+    private var SKIP_INTRO_SHOW_AT_MS = 10000L // Show "Skip Intro" button after 10 seconds (default)
+    private var SKIP_INTRO_JUMP_TO_MS = 120000L // Skip to 2 minutes (default)
+    private var NEXT_EPISODE_THRESHOLD_MS = 60000L // Show "Next Episode" button 1 minute before end (default)
     
     // Audio Manager
     private lateinit var audioManager: AudioManager
@@ -178,14 +193,64 @@ class PlayerActivity : AppCompatActivity() {
         titleText = findViewById(R.id.title_text)
         loadingIndicator = findViewById(R.id.loading_indicator)
         
+        // Skip Intro button (Netflix-style)
+        skipIntroContainer = findViewById(R.id.skip_intro_container)
+        skipIntroCountdownProgress = findViewById(R.id.skip_intro_countdown_progress)
+        skipIntroCountdownText = findViewById(R.id.skip_intro_countdown_text)
+        
+        // Setup Skip Intro button click and focus
+        skipIntroContainer?.setOnClickListener {
+            skipIntroNow()
+        }
+        
+        // Add focus change listener for Skip Intro button (TV navigation)
+        skipIntroContainer?.setOnFocusChangeListener { view, hasFocus ->
+            view.animate()
+                .scaleX(if (hasFocus) 1.1f else 1.0f)
+                .scaleY(if (hasFocus) 1.1f else 1.0f)
+                .setDuration(200)
+                .start()
+        }
+        
+        // Handle D-pad center and enter key for Skip Intro button
+        skipIntroContainer?.setOnKeyListener { _, keyCode, event ->
+            if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || 
+                 keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
+                skipIntroNow()
+                return@setOnKeyListener true
+            }
+            false
+        }
+        
         // Next Episode button (Netflix-style)
         nextEpisodeContainer = findViewById(R.id.next_episode_container)
         countdownProgress = findViewById(R.id.countdown_progress)
         countdownText = findViewById(R.id.countdown_text)
         
-        // Setup Next Episode button click
+        // Setup Next Episode button click and focus
         nextEpisodeContainer?.setOnClickListener {
             playNextEpisodeNow()
+        }
+        
+        // Add focus change listener for Next Episode button (TV navigation)
+        nextEpisodeContainer?.setOnFocusChangeListener { view, hasFocus ->
+            view.animate()
+                .scaleX(if (hasFocus) 1.1f else 1.0f)
+                .scaleY(if (hasFocus) 1.1f else 1.0f)
+                .setDuration(200)
+                .start()
+        }
+        
+        // Handle D-pad center and enter key for Next Episode button
+        nextEpisodeContainer?.setOnKeyListener { _, keyCode, event ->
+            if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+                (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || 
+                 keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
+                playNextEpisodeNow()
+                return@setOnKeyListener true
+            }
+            false
         }
         
         // Sync top bar visibility with player controller
@@ -660,6 +725,10 @@ class PlayerActivity : AppCompatActivity() {
             // Hide next episode button if showing
             hideNextEpisodeButton()
             
+            // Reset skip intro state for new episode
+            hasSkippedIntro = false
+            hideSkipIntroButton()
+            
             // Create new media source
             val mediaSource = createMediaSource(url)
             
@@ -685,6 +754,171 @@ class PlayerActivity : AppCompatActivity() {
         } catch (e: Exception) {
             android.util.Log.e("PlayerActivity", "Error loading episode", e)
             Toast.makeText(this, "Erreur de chargement", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    // ==================== Series Configuration ====================
+    
+    /**
+     * Load custom configuration for the current series/season
+     */
+    private fun loadSeriesConfiguration() {
+        // Get series ID from intent (use seriesName as fallback ID)
+        val seriesIdFromIntent = intent.getStringExtra("SERIES_ID") ?: intent.getIntExtra("SERIES_ID", 0).toString()
+        val seriesId = if (seriesIdFromIntent.isNotEmpty() && seriesIdFromIntent != "0") {
+            seriesIdFromIntent
+        } else {
+            // Fallback: use series name as ID
+            seriesName?.hashCode()?.toString() ?: return
+        }
+        
+        // Load config
+        val config = SeriesConfigManager.getConfig(seriesId, currentSeasonNumber)
+        
+        // Apply config
+        SKIP_INTRO_SHOW_AT_MS = config.skipIntroShowAtMs
+        SKIP_INTRO_JUMP_TO_MS = config.skipIntroJumpToMs
+        NEXT_EPISODE_THRESHOLD_MS = config.nextEpisodeThresholdMs
+        
+        android.util.Log.d("PlayerActivity", "===== SERIES CONFIG =====")
+        android.util.Log.d("PlayerActivity", "Series ID: $seriesId, Season: $currentSeasonNumber")
+        android.util.Log.d("PlayerActivity", "Skip Intro Show At: ${SKIP_INTRO_SHOW_AT_MS}ms (${SKIP_INTRO_SHOW_AT_MS/1000}s)")
+        android.util.Log.d("PlayerActivity", "Skip Intro Jump To: ${SKIP_INTRO_JUMP_TO_MS}ms (${SKIP_INTRO_JUMP_TO_MS/1000}s)")
+        android.util.Log.d("PlayerActivity", "Next Episode Threshold: ${NEXT_EPISODE_THRESHOLD_MS}ms (${NEXT_EPISODE_THRESHOLD_MS/1000}s)")
+        android.util.Log.d("PlayerActivity", "Apply To All: ${config.applyToAllSeasons}")
+        android.util.Log.d("PlayerActivity", "=========================")
+    }
+    
+    // ==================== Skip Intro Feature (Netflix-style) ====================
+    
+    /**
+     * Check if we should show the skip intro button
+     */
+    private fun checkForSkipIntroTrigger() {
+        if (type != "SERIES" || hasSkippedIntro || isSkipIntroShowing) return
+        
+        val exoPlayer = player ?: return
+        val position = exoPlayer.currentPosition
+        val duration = exoPlayer.duration
+        
+        // Show button after SKIP_INTRO_SHOW_AT_MS (10 seconds by default)
+        // Hide if we pass the intro end point
+        if (position >= SKIP_INTRO_SHOW_AT_MS && position < SKIP_INTRO_JUMP_TO_MS) {
+            if (!isSkipIntroShowing) {
+                android.util.Log.d("PlayerActivity", "TRIGGERING skip intro button at position: ${position}ms")
+                showSkipIntroButton()
+            }
+        }
+    }
+    
+    /**
+     * Show the skip intro button with countdown animation
+     */
+    private fun showSkipIntroButton() {
+        if (isSkipIntroShowing || hasSkippedIntro) return
+        
+        isSkipIntroShowing = true
+        skipIntroCountdownSeconds = 10 // 10 seconds countdown
+        
+        // Update UI
+        runOnUiThread {
+            skipIntroContainer?.visibility = View.VISIBLE
+            skipIntroCountdownText?.text = skipIntroCountdownSeconds.toString()
+            skipIntroCountdownProgress?.progress = 100
+            
+            // Animate entrance
+            skipIntroContainer?.alpha = 0f
+            skipIntroContainer?.translationX = 100f
+            skipIntroContainer?.animate()
+                ?.alpha(1f)
+                ?.translationX(0f)
+                ?.setDuration(300)
+                ?.withEndAction {
+                    // Request focus after animation for TV navigation
+                    skipIntroContainer?.requestFocus()
+                }
+                ?.start()
+        }
+        
+        // Start countdown
+        startSkipIntroCountdown()
+        
+        android.util.Log.d("PlayerActivity", "Showing skip intro button")
+    }
+    
+    /**
+     * Hide the skip intro button
+     */
+    private fun hideSkipIntroButton() {
+        isSkipIntroShowing = false
+        stopSkipIntroCountdown()
+        
+        runOnUiThread {
+            skipIntroContainer?.animate()
+                ?.alpha(0f)
+                ?.translationX(100f)
+                ?.setDuration(200)
+                ?.withEndAction {
+                    skipIntroContainer?.visibility = View.GONE
+                }
+                ?.start()
+        }
+    }
+    
+    /**
+     * Start the skip intro countdown timer
+     */
+    private fun startSkipIntroCountdown() {
+        stopSkipIntroCountdown()
+        
+        skipIntroCountdownRunnable = object : Runnable {
+            override fun run() {
+                skipIntroCountdownSeconds--
+                
+                runOnUiThread {
+                    skipIntroCountdownText?.text = skipIntroCountdownSeconds.toString()
+                    // Animate progress (from 100 to 0 over 10 seconds)
+                    val progress = (skipIntroCountdownSeconds * 10) // 10->100, 9->90, ... 1->10, 0->0
+                    skipIntroCountdownProgress?.progress = progress
+                }
+                
+                if (skipIntroCountdownSeconds <= 0) {
+                    // Auto-hide the button (user didn't want to skip)
+                    hasSkippedIntro = true // Mark as handled
+                    hideSkipIntroButton()
+                } else {
+                    skipIntroCountdownHandler.postDelayed(this, 1000)
+                }
+            }
+        }
+        skipIntroCountdownHandler.postDelayed(skipIntroCountdownRunnable!!, 1000)
+    }
+    
+    /**
+     * Stop the skip intro countdown timer
+     */
+    private fun stopSkipIntroCountdown() {
+        skipIntroCountdownRunnable?.let { skipIntroCountdownHandler.removeCallbacks(it) }
+        skipIntroCountdownRunnable = null
+    }
+    
+    /**
+     * Skip the intro immediately (jump to SKIP_INTRO_JUMP_TO_MS - default 2 minutes)
+     */
+    private fun skipIntroNow() {
+        val exoPlayer = player ?: return
+        
+        stopSkipIntroCountdown()
+        hideSkipIntroButton()
+        hasSkippedIntro = true
+        
+        android.util.Log.d("PlayerActivity", "Skipping intro - jumping to ${SKIP_INTRO_JUMP_TO_MS}ms")
+        
+        try {
+            exoPlayer.seekTo(SKIP_INTRO_JUMP_TO_MS)
+            Toast.makeText(this, "Intro passée", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            android.util.Log.e("PlayerActivity", "Error skipping intro", e)
         }
     }
     
@@ -763,6 +997,7 @@ class PlayerActivity : AppCompatActivity() {
         
         positionCheckRunnable = object : Runnable {
             override fun run() {
+                checkForSkipIntroTrigger()
                 checkForNextEpisodeTrigger()
                 positionCheckHandler.postDelayed(this, 1000) // Check every second
             }
@@ -826,6 +1061,10 @@ class PlayerActivity : AppCompatActivity() {
                 ?.alpha(1f)
                 ?.translationX(0f)
                 ?.setDuration(300)
+                ?.withEndAction {
+                    // Request focus after animation for TV navigation
+                    nextEpisodeContainer?.requestFocus()
+                }
                 ?.start()
         }
         
@@ -939,6 +1178,9 @@ class PlayerActivity : AppCompatActivity() {
         android.util.Log.d("PlayerActivity", "URL: $streamUrl")
         if (type == "SERIES") {
             android.util.Log.d("PlayerActivity", "Series: $seriesName, Season: $currentSeasonNumber, Seasons count: ${seasons.size}")
+            
+            // Load custom configuration for this series/season
+            loadSeriesConfiguration()
         }
         android.util.Log.d("PlayerActivity", "========================")
     }
@@ -948,6 +1190,10 @@ class PlayerActivity : AppCompatActivity() {
     private var hasTriedSoftwareDecoder = false
     
     private fun initializePlayer(useSoftwareDecoder: Boolean = false) {
+        // Reset skip intro state for new initialization
+        hasSkippedIntro = false
+        hideSkipIntroButton()
+        
         // Check if running on emulator - prefer software decoder for HEVC
         val isEmulator = android.os.Build.PRODUCT.contains("sdk") || 
                         android.os.Build.MODEL.contains("Emulator") ||
@@ -1449,10 +1695,12 @@ class PlayerActivity : AppCompatActivity() {
         super.onPause()
         // Save watch progress before pausing
         saveWatchProgress()
-        // Stop next episode monitoring
+        // Stop monitoring
         stopPositionMonitoring()
         stopCountdown()
+        stopSkipIntroCountdown()
         hideNextEpisodeButton()
+        hideSkipIntroButton()
         player?.pause()
     }
     
@@ -1471,9 +1719,10 @@ class PlayerActivity : AppCompatActivity() {
         saveWatchProgress()
         handler.removeCallbacksAndMessages(null)
         
-        // Stop next episode monitoring
+        // Stop all monitoring
         stopPositionMonitoring()
         stopCountdown()
+        stopSkipIntroCountdown()
         
         releasePlayer()
     }
@@ -1494,17 +1743,22 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
-        // Save progress with cover image
+        // Save progress with cover image and series metadata (if applicable)
         WatchProgressManager.saveProgress(
             url = url,
             title = videoTitle,
             positionMs = currentPosition,
             durationMs = duration,
             type = videoType,
-            cover = cover // Pass the cover image URL
+            cover = cover, // Pass the cover image URL
+            seriesId = if (videoType == "SERIES") intent.getStringExtra("SERIES_ID") else null,
+            seriesName = if (videoType == "SERIES") seriesName else null,
+            seasonNumber = if (videoType == "SERIES") currentSeasonNumber else null,
+            episodeId = if (videoType == "SERIES") currentEpisodeId else null,
+            seasonsJson = if (videoType == "SERIES") intent.getStringExtra("SEASONS_JSON") else null
         )
         
-        android.util.Log.d("PlayerActivity", "Saved progress for '$videoTitle': ${WatchProgressManager.formatTime(currentPosition)} (cover: $cover)")
+        android.util.Log.d("PlayerActivity", "Saved progress for '$videoTitle': ${WatchProgressManager.formatTime(currentPosition)} (cover: $cover, seriesId: ${if (videoType == "SERIES") intent.getStringExtra("SERIES_ID") else "N/A"})")
     }
     
     private fun releasePlayer() {
