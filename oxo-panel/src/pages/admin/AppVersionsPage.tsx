@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, Download, AlertTriangle, Check, X, Github, ExternalLink, Link } from 'lucide-react';
+import { Trash2, Plus, Download, AlertTriangle, Check, X, Cloud, ExternalLink, Link, Copy } from 'lucide-react';
 import { adminApi } from '../../services/api';
 
-// GitHub config
-const GITHUB_OWNER = 'vimastec';
-const GITHUB_REPO = 'oxo-player-releases';
-const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/new`;
+// Cloudflare R2 config
+const R2_BUCKET_URL = 'https://pub-7e1f011dd95748139aaec2ad6111e4eb.r2.dev';
+const R2_DASHBOARD_URL = 'https://dash.cloudflare.com';
 
 interface AppVersion {
   id: number;
@@ -144,24 +143,30 @@ export function AppVersionsPage() {
       {/* Instructions */}
       <div className="mb-6 p-4 bg-dark/50 rounded-xl border border-border space-y-3">
         <div className="flex items-center gap-2 text-white font-medium">
-          <Github className="w-5 h-5" />
+          <Cloud className="w-5 h-5" />
           Comment publier une nouvelle version ?
         </div>
         <ol className="text-sm text-muted space-y-2 list-decimal list-inside">
           <li>
             <a 
-              href={GITHUB_RELEASES_URL}
+              href={R2_DASHBOARD_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline inline-flex items-center gap-1"
             >
-              Créer une release sur GitHub <ExternalLink className="w-3 h-3" />
+              Ouvrir Cloudflare R2 <ExternalLink className="w-3 h-3" />
             </a>
-            {' '}et uploader l'APK
+            {' '}et uploader l'APK dans le dossier <code className="bg-dark px-1 rounded">/apk/</code>
           </li>
-          <li>Copier l'URL de téléchargement de l'APK (clic droit → Copier l'adresse du lien)</li>
-          <li>Cliquer sur "Nouvelle version" et coller l'URL</li>
+          <li>
+            L'URL sera : <code className="bg-dark px-1 rounded text-xs">{R2_BUCKET_URL}/apk/oxo-player-X.X.X.apk</code>
+          </li>
+          <li>Cliquer sur "Nouvelle version" et coller l'URL complète</li>
         </ol>
+        <div className="flex items-center gap-2 mt-2 p-2 bg-primary/10 rounded-lg">
+          <Copy className="w-4 h-4 text-primary" />
+          <span className="text-xs">Base URL : <code className="text-primary">{R2_BUCKET_URL}</code></span>
+        </div>
       </div>
 
       {/* Versions list */}
@@ -274,12 +279,12 @@ export function AppVersionsPage() {
                   type="url"
                   value={downloadUrl}
                   onChange={(e) => setDownloadUrl(e.target.value)}
-                  placeholder="https://github.com/.../releases/download/.../app-release.apk"
+                  placeholder={`${R2_BUCKET_URL}/apk/oxo-player-1.0.0.apk`}
                   className="w-full px-4 py-2 bg-dark border border-border rounded-xl focus:outline-none focus:border-primary text-sm"
                   required
                 />
                 <p className="text-xs text-muted mt-1">
-                  Copiez l'URL depuis votre release GitHub
+                  Copiez l'URL de l'APK depuis Cloudflare R2
                 </p>
               </div>
 

@@ -13,8 +13,8 @@ const adminRoutes = require('./routes/admin');
 const resellerRoutes = require('./routes/reseller');
 const deviceRoutes = require('./routes/device');
 const portalRoutes = require('./routes/portal');
-// TEMPORAIREMENT DÉSACTIVÉ - à réactiver après correction
-// const appVersionRoutes = require('./routes/appVersion');
+// App Version routes for OTA updates
+const appVersionRoutes = require('./routes/appVersion');
 
 // Security middleware
 const {
@@ -151,8 +151,7 @@ app.use('/api/portal/login', loginLimiter);
 app.use('/api/portal', portalRoutes);
 
 // App Version routes (for OTA updates)
-// TEMPORAIREMENT DÉSACTIVÉ
-// app.use('/api/app-version', appVersionRoutes);
+app.use('/api/app-version', appVersionRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -187,23 +186,23 @@ app.get('/api/health', (req, res) => {
         console.log('Portal migration already applied or failed:', err.message);
       }
 
-      // TEMPORAIREMENT DÉSACTIVÉ
-      // try {
-      //   const appVersionMigration = require('./migrations/add_app_versions');
-      //   appVersionMigration.runMigration();
-      // } catch (err) {
-      //   console.log('App version migration already applied or failed:', err.message);
-      // }
+      // App versions migration (for OTA updates)
+      try {
+        const appVersionMigration = require('./migrations/add_app_versions');
+        appVersionMigration.runMigration();
+      } catch (err) {
+        console.log('App version migration already applied or failed:', err.message);
+      }
     } else {
       console.log('✅ PostgreSQL detected - running PostgreSQL migrations');
       
-      // TEMPORAIREMENT DÉSACTIVÉ
-      // try {
-      //   const appVersionMigration = require('./migrations/add_app_versions');
-      //   await appVersionMigration.runMigration();
-      // } catch (err) {
-      //   console.log('App version migration already applied or failed:', err.message);
-      // }
+      // App versions migration (for OTA updates)
+      try {
+        const appVersionMigration = require('./migrations/add_app_versions');
+        await appVersionMigration.runMigration();
+      } catch (err) {
+        console.log('App version migration already applied or failed:', err.message);
+      }
     }
 
     app.listen(PORT, () => {

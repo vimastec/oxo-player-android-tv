@@ -255,6 +255,26 @@ data class SeriesPlaybackConfig(
     val applyToAllSeasons: Boolean // If true, applies to all seasons of this series
 )
 
+/**
+ * OTA Update - Check Response
+ */
+data class UpdateCheckResponse(
+    val updateAvailable: Boolean,
+    val isMandatory: Boolean? = false,
+    val currentVersion: Int? = null,
+    val latestVersion: LatestVersionInfo? = null,
+    val latestVersionCode: Int? = null,
+    val message: String? = null
+)
+
+data class LatestVersionInfo(
+    val versionCode: Int,
+    val versionName: String,
+    val downloadUrl: String,
+    val changelog: String? = null,
+    val minSupportedVersion: Int? = null
+)
+
 
 
 

@@ -46,6 +46,18 @@ export const authApi = {
 export const adminApi = {
   dashboard: () => api.get('/admin/dashboard'),
   
+  // App Versions (OTA Updates)
+  getAppVersions: () => api.get('/app-version'),
+  createAppVersion: (data: { 
+    versionCode: number; 
+    versionName: string; 
+    downloadUrl: string; 
+    changelog?: string; 
+    isMandatory?: boolean; 
+    minSupportedVersion?: number 
+  }) => api.post('/app-version', data),
+  deleteAppVersion: (id: number) => api.delete(`/app-version/${id}`),
+  
   // Resellers
   getResellers: () => api.get('/admin/resellers'),
   createReseller: (data: { email: string; password: string; name: string; credits?: number; allow_cross_reseller_activation?: boolean }) =>

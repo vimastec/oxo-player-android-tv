@@ -73,5 +73,13 @@ interface ApiService {
     suspend fun getStreamProxy(
         @Query("url") streamUrl: String
     ): Response<okhttp3.ResponseBody>
+    
+    /**
+     * Check for app updates (OTA)
+     */
+    @GET("app-version/check")
+    suspend fun checkUpdate(
+        @Query("versionCode") versionCode: Int
+    ): Response<UpdateCheckResponse>
 }
 

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_dark">
+
+    <!-- Centered Card -->
+    <LinearLayout
+        android:layout_width="500dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:background="@drawable/card_background"
+        android:padding="32dp"
+        android:elevation="8dp">
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🆕 Mise à jour disponible"
+            android:textSize="24sp"
+            android:textColor="@color/text_primary"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Current Version -->
+        <TextView
+            android:id="@+id/currentVersionText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Version actuelle : v1.0.0"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:gravity="center"
+            tools:text="Version actuelle : v1.0.0" />
+
+        <!-- New Version -->
+        <TextView
+            android:id="@+id/newVersionText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Nouvelle version : v1.1.0"
+            android:textSize="18sp"
+            android:textColor="@color/primary"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="16dp"
+            tools:text="Nouvelle version : v1.1.0" />
+
+        <!-- Changelog -->
+        <TextView
+            android:id="@+id/changelogText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/changelog_background"
+            android:padding="16dp"
+            android:text="Nouveautés de cette version..."
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:maxLines="6"
+            android:ellipsize="end"
+            android:layout_marginBottom="24dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="• Amélioration des performances\n• Correction de bugs\n• Nouvelle interface" />
+
+        <!-- Progress -->
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:indeterminate="true"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/progressText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Téléchargement en cours..."
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary"
+            android:gravity="center"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- Later Button -->
+            <Button
+                android:id="@+id/laterButton"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/btn_secondary"
+                android:text="Plus tard"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
+
+            <!-- Update Button -->
+            <Button
+                android:id="@+id/updateButton"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/btn_primary"
+                android:text="Mettre à jour"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>
