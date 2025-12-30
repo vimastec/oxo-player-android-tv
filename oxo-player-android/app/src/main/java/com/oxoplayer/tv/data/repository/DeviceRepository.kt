@@ -297,4 +297,3 @@ class DeviceRepository(private val context: Context) {
         }
     }
 }
-
