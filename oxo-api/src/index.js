@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/admin');
 const resellerRoutes = require('./routes/reseller');
 const deviceRoutes = require('./routes/device');
 const portalRoutes = require('./routes/portal');
+const appVersionRoutes = require('./routes/appVersion');
 
 // Security middleware
 const {
@@ -148,6 +149,9 @@ app.use('/api/device', deviceRoutes);
 app.use('/api/portal/login', loginLimiter);
 app.use('/api/portal', portalRoutes);
 
+// App Version routes (for OTA updates)
+app.use('/api/app-version', appVersionRoutes);
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'OXO API is running' });
@@ -180,8 +184,23 @@ app.get('/api/health', (req, res) => {
       } catch (err) {
         console.log('Portal migration already applied or failed:', err.message);
       }
+
+      try {
+        const appVersionMigration = require('./migrations/add_app_versions');
+        appVersionMigration.runMigration();
+      } catch (err) {
+        console.log('App version migration already applied or failed:', err.message);
+      }
     } else {
-      console.log('✅ PostgreSQL detected - skipping SQLite migrations');
+      console.log('✅ PostgreSQL detected - running PostgreSQL migrations');
+      
+      // Run PostgreSQL migrations
+      try {
+        const appVersionMigration = require('./migrations/add_app_versions');
+        await appVersionMigration.runMigration();
+      } catch (err) {
+        console.log('App version migration already applied or failed:', err.message);
+      }
     }
 
     app.listen(PORT, () => {
@@ -202,4 +221,3 @@ app.get('/api/health', (req, res) => {
     process.exit(1);
   }
 })();
-
