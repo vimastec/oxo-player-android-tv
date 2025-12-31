@@ -10,6 +10,7 @@ import { AdminDevicesPage } from './pages/admin/DevicesPage';
 import { AdminTransactionsPage } from './pages/admin/TransactionsPage';
 import { SellerContactsPage } from './pages/admin/SellerContactsPage';
 import { SellerRequestsPage } from './pages/admin/SellerRequestsPage';
+import { AppVersionsPage } from './pages/admin/AppVersionsPage';
 
 // Reseller pages
 import { ResellerDashboardPage } from './pages/reseller/DashboardPage';
@@ -103,6 +104,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <SellerRequestsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/app-versions"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AppVersionsPage />
             </ProtectedRoute>
           }
         />

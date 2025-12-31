@@ -11,6 +11,7 @@ import {
   Store,
   MessageSquare,
   UserPlus,
+  Download,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
@@ -51,6 +52,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/admin/transactions', icon: History, label: 'Transactions' },
     { path: '/admin/seller-contacts', icon: Store, label: 'Points de vente' },
     { path: '/admin/seller-requests', icon: MessageSquare, label: 'Demandes partenariat' },
+    { path: '/admin/app-versions', icon: Download, label: 'Mise à jour OTA' },
   ];
 
   const resellerNavItems = [
