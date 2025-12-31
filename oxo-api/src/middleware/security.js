@@ -46,6 +46,7 @@ const generalLimiter = rateLimit({
   message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     // Use X-Forwarded-For header if behind proxy (Railway)
     return req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
@@ -59,6 +60,7 @@ const loginLimiter = rateLimit({
   message: { error: 'Trop de tentatives de connexion. Réessayez dans 5 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     return req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
   },
@@ -71,6 +73,7 @@ const activationLimiter = rateLimit({
   message: { error: 'Trop d\'activations. Réessayez dans une minute.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     // Limit by user ID + IP
     const userId = req.user?.id || 'anon';
@@ -86,6 +89,7 @@ const deviceLimiter = rateLimit({
   message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     return req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
   },
