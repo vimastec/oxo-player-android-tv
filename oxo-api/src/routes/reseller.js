@@ -2,8 +2,9 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('../database');
+const { db, usePostgres } = require('../database');
 const { verifyToken, isReseller } = require('../middleware/auth');
 
 const router = express.Router();
@@ -711,6 +712,310 @@ router.delete('/devices/:mac/playlists/:playlistId', async (req, res) => {
     success: true,
     message: 'Playlist supprimée'
   });
+});
+
+// ============= SUB-RESELLERS MANAGEMENT =============
+
+// Check if reseller can create sub-resellers
+const canCreateSubResellers = async (resellerId) => {
+  const reseller = await db.prepare('SELECT can_create_subresellers, is_subreseller FROM resellers WHERE id = ?').get(resellerId);
+  if (!reseller) return false;
+  // Sub-resellers cannot create sub-sub-resellers
+  if (reseller.is_subreseller === true || reseller.is_subreseller === 1) return false;
+  return reseller.can_create_subresellers === true || reseller.can_create_subresellers === 1;
+};
+
+// Get current reseller info (including permissions)
+router.get('/me', async (req, res) => {
+  const resellerId = req.user.id;
+  
+  const reseller = await db.prepare(`
+    SELECT id, email, name, credits, status, can_create_subresellers, is_subreseller, parent_reseller_id, created_at
+    FROM resellers WHERE id = ?
+  `).get(resellerId);
+  
+  if (!reseller) {
+    return res.status(404).json({ error: 'Revendeur non trouvé' });
+  }
+  
+  res.json({
+    ...reseller,
+    can_create_subresellers: usePostgres ? reseller.can_create_subresellers : !!reseller.can_create_subresellers,
+    is_subreseller: usePostgres ? reseller.is_subreseller : !!reseller.is_subreseller
+  });
+});
+
+// List sub-resellers
+router.get('/subresellers', async (req, res) => {
+  const resellerId = req.user.id;
+  
+  // Check permission
+  const canCreate = await canCreateSubResellers(resellerId);
+  if (!canCreate) {
+    return res.status(403).json({ error: 'Vous n\'avez pas la permission de gérer des sous-revendeurs' });
+  }
+  
+  const subResellers = await db.prepare(`
+    SELECT r.id, r.email, r.name, r.credits, r.status, r.created_at,
+           (SELECT COUNT(*) FROM devices WHERE reseller_id = r.id) as device_count,
+           (SELECT COUNT(*) FROM devices WHERE reseller_id = r.id AND status = 'active') as active_devices
+    FROM resellers r
+    WHERE r.parent_reseller_id = ?
+    ORDER BY r.created_at DESC
+  `).all(resellerId);
+  
+  res.json(subResellers);
+});
+
+// Create sub-reseller
+router.post('/subresellers', async (req, res) => {
+  const resellerId = req.user.id;
+  const { email, password, name, credits } = req.body;
+  
+  // Check permission
+  const canCreate = await canCreateSubResellers(resellerId);
+  if (!canCreate) {
+    return res.status(403).json({ error: 'Vous n\'avez pas la permission de créer des sous-revendeurs' });
+  }
+  
+  // Validate input
+  if (!email || !password || !name) {
+    return res.status(400).json({ error: 'Email, mot de passe et nom sont requis' });
+  }
+  
+  const initialCredits = parseInt(credits) || 0;
+  
+  // Check if email already exists
+  const existingReseller = await db.prepare('SELECT id FROM resellers WHERE email = ?').get(email);
+  if (existingReseller) {
+    return res.status(400).json({ error: 'Cet email existe déjà' });
+  }
+  
+  // Check if parent has enough credits
+  const parentReseller = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+  if (initialCredits > 0 && parentReseller.credits < initialCredits) {
+    return res.status(400).json({ 
+      error: `Crédits insuffisants. Disponible: ${parentReseller.credits}, Demandé: ${initialCredits}` 
+    });
+  }
+  
+  try {
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    
+    // Create sub-reseller
+    const result = await db.prepare(`
+      INSERT INTO resellers (email, password, name, credits, status, parent_reseller_id, is_subreseller, can_create_subresellers)
+      VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
+    `).run(
+      email,
+      hashedPassword,
+      name,
+      initialCredits,
+      resellerId,
+      usePostgres ? true : 1,
+      usePostgres ? false : 0
+    );
+    
+    const newSubResellerId = Number(result?.lastInsertRowid || 0);
+    
+    // Deduct credits from parent
+    if (initialCredits > 0) {
+      await db.prepare('UPDATE resellers SET credits = credits - ? WHERE id = ?').run(initialCredits, resellerId);
+      
+      // Log transaction for parent (deduction)
+      await db.prepare(`
+        INSERT INTO transactions (reseller_id, from_reseller_id, type, amount, description)
+        VALUES (?, ?, 'credit_transfer_out', ?, ?)
+      `).run(resellerId, null, initialCredits, `Transfert à ${name}`);
+      
+      // Log transaction for sub-reseller (addition)
+      await db.prepare(`
+        INSERT INTO transactions (reseller_id, from_reseller_id, type, amount, description)
+        VALUES (?, ?, 'credit_transfer_in', ?, ?)
+      `).run(newSubResellerId, resellerId, initialCredits, 'Crédits initiaux du parent');
+    }
+    
+    const updatedParent = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Sous-revendeur créé avec succès',
+      subreseller: {
+        id: newSubResellerId,
+        email,
+        name,
+        credits: initialCredits
+      },
+      parent_credits_remaining: updatedParent.credits
+    });
+  } catch (error) {
+    console.error('Error creating sub-reseller:', error);
+    res.status(500).json({ error: 'Erreur lors de la création du sous-revendeur' });
+  }
+});
+
+// Update sub-reseller
+router.put('/subresellers/:id', async (req, res) => {
+  const resellerId = req.user.id;
+  const { id } = req.params;
+  const { name, password, status } = req.body;
+  
+  // Check permission
+  const canCreate = await canCreateSubResellers(resellerId);
+  if (!canCreate) {
+    return res.status(403).json({ error: 'Vous n\'avez pas la permission de gérer des sous-revendeurs' });
+  }
+  
+  // Check if sub-reseller belongs to this reseller
+  const subReseller = await db.prepare('SELECT * FROM resellers WHERE id = ? AND parent_reseller_id = ?').get(id, resellerId);
+  if (!subReseller) {
+    return res.status(404).json({ error: 'Sous-revendeur non trouvé' });
+  }
+  
+  try {
+    if (password) {
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      await db.prepare('UPDATE resellers SET password = ? WHERE id = ?').run(hashedPassword, id);
+    }
+    
+    if (name) {
+      await db.prepare('UPDATE resellers SET name = ? WHERE id = ?').run(name, id);
+    }
+    
+    if (status && ['active', 'inactive'].includes(status)) {
+      await db.prepare('UPDATE resellers SET status = ? WHERE id = ?').run(status, id);
+    }
+    
+    res.json({ success: true, message: 'Sous-revendeur mis à jour' });
+  } catch (error) {
+    console.error('Error updating sub-reseller:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour' });
+  }
+});
+
+// Transfer credits to sub-reseller
+router.post('/subresellers/:id/credits', async (req, res) => {
+  const resellerId = req.user.id;
+  const { id } = req.params;
+  const { amount } = req.body;
+  
+  // Check permission
+  const canCreate = await canCreateSubResellers(resellerId);
+  if (!canCreate) {
+    return res.status(403).json({ error: 'Vous n\'avez pas la permission de gérer des sous-revendeurs' });
+  }
+  
+  const creditAmount = parseInt(amount);
+  if (!creditAmount || creditAmount <= 0) {
+    return res.status(400).json({ error: 'Montant invalide' });
+  }
+  
+  // Check if sub-reseller belongs to this reseller
+  const subReseller = await db.prepare('SELECT * FROM resellers WHERE id = ? AND parent_reseller_id = ?').get(id, resellerId);
+  if (!subReseller) {
+    return res.status(404).json({ error: 'Sous-revendeur non trouvé' });
+  }
+  
+  // Check if parent has enough credits
+  const parentReseller = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+  if (parentReseller.credits < creditAmount) {
+    return res.status(400).json({ 
+      error: `Crédits insuffisants. Disponible: ${parentReseller.credits}` 
+    });
+  }
+  
+  try {
+    // Deduct from parent
+    await db.prepare('UPDATE resellers SET credits = credits - ? WHERE id = ?').run(creditAmount, resellerId);
+    
+    // Add to sub-reseller
+    await db.prepare('UPDATE resellers SET credits = credits + ? WHERE id = ?').run(creditAmount, id);
+    
+    // Log transaction for parent (deduction)
+    await db.prepare(`
+      INSERT INTO transactions (reseller_id, from_reseller_id, type, amount, description)
+      VALUES (?, ?, 'credit_transfer_out', ?, ?)
+    `).run(resellerId, null, creditAmount, `Transfert à ${subReseller.name}`);
+    
+    // Log transaction for sub-reseller (addition)
+    await db.prepare(`
+      INSERT INTO transactions (reseller_id, from_reseller_id, type, amount, description)
+      VALUES (?, ?, 'credit_transfer_in', ?, ?)
+    `).run(id, resellerId, creditAmount, 'Transfert du parent');
+    
+    const updatedParent = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+    const updatedSub = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(id);
+    
+    res.json({
+      success: true,
+      message: `${creditAmount} crédits transférés`,
+      parent_credits: updatedParent.credits,
+      subreseller_credits: updatedSub.credits
+    });
+  } catch (error) {
+    console.error('Error transferring credits:', error);
+    res.status(500).json({ error: 'Erreur lors du transfert' });
+  }
+});
+
+// Delete sub-reseller
+router.delete('/subresellers/:id', async (req, res) => {
+  const resellerId = req.user.id;
+  const { id } = req.params;
+  
+  // Check permission
+  const canCreate = await canCreateSubResellers(resellerId);
+  if (!canCreate) {
+    return res.status(403).json({ error: 'Vous n\'avez pas la permission de gérer des sous-revendeurs' });
+  }
+  
+  // Check if sub-reseller belongs to this reseller
+  const subReseller = await db.prepare('SELECT * FROM resellers WHERE id = ? AND parent_reseller_id = ?').get(id, resellerId);
+  if (!subReseller) {
+    return res.status(404).json({ error: 'Sous-revendeur non trouvé' });
+  }
+  
+  try {
+    // Remove sub-reseller's devices assignment
+    await db.prepare('UPDATE devices SET reseller_id = NULL WHERE reseller_id = ?').run(id);
+    
+    // Delete sub-reseller
+    await db.prepare('DELETE FROM resellers WHERE id = ?').run(id);
+    
+    res.json({ success: true, message: 'Sous-revendeur supprimé' });
+  } catch (error) {
+    console.error('Error deleting sub-reseller:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression' });
+  }
+});
+
+// Get sub-reseller transactions (for history)
+router.get('/subresellers/:id/transactions', async (req, res) => {
+  const resellerId = req.user.id;
+  const { id } = req.params;
+  
+  // Check permission
+  const canCreate = await canCreateSubResellers(resellerId);
+  if (!canCreate) {
+    return res.status(403).json({ error: 'Vous n\'avez pas la permission de gérer des sous-revendeurs' });
+  }
+  
+  // Check if sub-reseller belongs to this reseller
+  const subReseller = await db.prepare('SELECT * FROM resellers WHERE id = ? AND parent_reseller_id = ?').get(id, resellerId);
+  if (!subReseller) {
+    return res.status(404).json({ error: 'Sous-revendeur non trouvé' });
+  }
+  
+  const transactions = await db.prepare(`
+    SELECT t.*, fr.name as from_reseller_name
+    FROM transactions t
+    LEFT JOIN resellers fr ON t.from_reseller_id = fr.id
+    WHERE t.reseller_id = ?
+    ORDER BY t.created_at DESC
+    LIMIT 50
+  `).all(id);
+  
+  res.json(transactions);
 });
 
 module.exports = router;

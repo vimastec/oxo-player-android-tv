@@ -60,9 +60,9 @@ export const adminApi = {
   
   // Resellers
   getResellers: () => api.get('/admin/resellers'),
-  createReseller: (data: { email: string; password: string; name: string; credits?: number; allow_cross_reseller_activation?: boolean }) =>
+  createReseller: (data: { email: string; password: string; name: string; credits?: number; allow_cross_reseller_activation?: boolean; can_create_subresellers?: boolean }) =>
     api.post('/admin/resellers', data),
-  updateReseller: (id: number, data: { name?: string; status?: string; password?: string; allow_cross_reseller_activation?: boolean }) =>
+  updateReseller: (id: number, data: { name?: string; status?: string; password?: string; allow_cross_reseller_activation?: boolean; can_create_subresellers?: boolean }) =>
     api.put(`/admin/resellers/${id}`, data),
   deleteReseller: (id: number) => api.delete(`/admin/resellers/${id}`),
   addCredits: (id: number, amount: number, description?: string) =>
@@ -94,6 +94,9 @@ export const adminApi = {
 export const resellerApi = {
   dashboard: () => api.get('/reseller/dashboard'),
   
+  // Get current reseller info (including permissions)
+  getMe: () => api.get('/reseller/me'),
+  
   // Devices
   getDevices: () => api.get('/reseller/devices'),
   activateDevice: (mac_address: string, force_extend = false) =>
@@ -110,7 +113,7 @@ export const resellerApi = {
     });
   },
   
-  // Multi-Playlist Management (NEW)
+  // Multi-Playlist Management
   getDevicePlaylists: (mac: string) => 
     api.get(`/reseller/devices/${mac}/playlists`),
   addDeviceM3UPlaylist: (mac: string, name: string, playlist_url: string, epg_url?: string) =>
@@ -133,6 +136,17 @@ export const resellerApi = {
   
   // Transactions
   getTransactions: () => api.get('/reseller/transactions'),
+  
+  // Sub-Resellers Management
+  getSubResellers: () => api.get('/reseller/subresellers'),
+  createSubReseller: (data: { email: string; password: string; name: string; credits?: number }) =>
+    api.post('/reseller/subresellers', data),
+  updateSubReseller: (id: number, data: { name?: string; password?: string; status?: string }) =>
+    api.put(`/reseller/subresellers/${id}`, data),
+  transferCreditsToSubReseller: (id: number, amount: number) =>
+    api.post(`/reseller/subresellers/${id}/credits`, { amount }),
+  deleteSubReseller: (id: number) => api.delete(`/reseller/subresellers/${id}`),
+  getSubResellerTransactions: (id: number) => api.get(`/reseller/subresellers/${id}/transactions`),
 };
 
 export default api;

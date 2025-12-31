@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, CreditCard, Loader2, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, CreditCard, Loader2, X, Users } from 'lucide-react';
 import { adminApi } from '../../services/api';
 
 interface Reseller {
@@ -9,6 +9,8 @@ interface Reseller {
   credits: number;
   status: string;
   allow_cross_reseller_activation?: boolean | number;
+  can_create_subresellers?: boolean | number;
+  subreseller_count?: number;
   device_count: number;
   active_devices: number;
   created_at: string;
@@ -26,6 +28,7 @@ export function ResellersPage() {
     name: '',
     credits: 0,
     allow_cross_reseller_activation: false,
+    can_create_subresellers: false,
   });
   const [creditsAmount, setCreditsAmount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,7 +54,7 @@ export function ResellersPage() {
     try {
       await adminApi.createReseller(formData);
       setShowModal(false);
-      setFormData({ email: '', password: '', name: '', credits: 0, allow_cross_reseller_activation: false });
+      setFormData({ email: '', password: '', name: '', credits: 0, allow_cross_reseller_activation: false, can_create_subresellers: false });
       loadResellers();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erreur lors de la création');
@@ -109,6 +112,18 @@ export function ResellersPage() {
     }
   };
 
+  const handleToggleSubResellers = async (reseller: Reseller) => {
+    const current =
+      reseller.can_create_subresellers === true || reseller.can_create_subresellers === 1;
+    const next = !current;
+    try {
+      await adminApi.updateReseller(reseller.id, { can_create_subresellers: next });
+      loadResellers();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erreur lors de la mise à jour');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -139,6 +154,7 @@ export function ResellersPage() {
                   <th>Appareils</th>
                   <th>Statut</th>
                   <th>Transfert MAC</th>
+                  <th>Sous-revendeurs</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -148,6 +164,9 @@ export function ResellersPage() {
                     const crossEnabled =
                       reseller.allow_cross_reseller_activation === true ||
                       reseller.allow_cross_reseller_activation === 1;
+                    const subResellersEnabled =
+                      reseller.can_create_subresellers === true ||
+                      reseller.can_create_subresellers === 1;
                     return (
                   <tr key={reseller.id}>
                     <td className="font-medium">{reseller.name}</td>
@@ -176,6 +195,24 @@ export function ResellersPage() {
                         />
                         <span className="text-sm text-muted">Autoriser</span>
                       </label>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={subResellersEnabled}
+                            onChange={() => handleToggleSubResellers(reseller)}
+                          />
+                          <span className="text-sm text-muted">Activer</span>
+                        </label>
+                        {subResellersEnabled && reseller.subreseller_count !== undefined && reseller.subreseller_count > 0 && (
+                          <span className="flex items-center gap-1 text-xs text-primary">
+                            <Users className="w-3 h-3" />
+                            {reseller.subreseller_count}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div className="flex items-center gap-2">
@@ -273,9 +310,24 @@ export function ResellersPage() {
                   }
                 />
                 <div>
-                  <p className="text-sm font-medium">Autoriser transfert/prolongation d’une MAC d’un autre revendeur</p>
+                  <p className="text-sm font-medium">Autoriser transfert/prolongation d'une MAC d'un autre revendeur</p>
                   <p className="text-xs text-muted">
                     Si activé, ce revendeur pourra prolonger une MAC active appartenant à un autre revendeur (avec confirmation).
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 pt-2">
+                <input
+                  type="checkbox"
+                  checked={formData.can_create_subresellers}
+                  onChange={(e) =>
+                    setFormData({ ...formData, can_create_subresellers: e.target.checked })
+                  }
+                />
+                <div>
+                  <p className="text-sm font-medium">Peut créer des sous-revendeurs</p>
+                  <p className="text-xs text-muted">
+                    Si activé, ce revendeur pourra créer des sous-comptes et leur transférer des crédits depuis son propre solde.
                   </p>
                 </div>
               </div>

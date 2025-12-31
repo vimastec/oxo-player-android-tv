@@ -94,6 +94,9 @@ async function init() {
         credits INTEGER DEFAULT 0,
         status TEXT DEFAULT 'active',
         allow_cross_reseller_activation BOOLEAN DEFAULT FALSE,
+        can_create_subresellers BOOLEAN DEFAULT FALSE,
+        parent_reseller_id INTEGER REFERENCES resellers(id),
+        is_subreseller BOOLEAN DEFAULT FALSE,
         created_by INTEGER REFERENCES admins(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -139,6 +142,7 @@ async function init() {
         id SERIAL PRIMARY KEY,
         reseller_id INTEGER REFERENCES resellers(id),
         admin_id INTEGER REFERENCES admins(id),
+        from_reseller_id INTEGER REFERENCES resellers(id),
         type TEXT NOT NULL,
         amount INTEGER NOT NULL,
         description TEXT,
@@ -182,6 +186,36 @@ async function init() {
     } catch (err) {
       console.error('❌ Failed to ensure resellers.allow_cross_reseller_activation:', err.message);
     }
+
+    // Sub-resellers columns
+    try {
+      await pool.query(`
+        ALTER TABLE resellers
+        ADD COLUMN IF NOT EXISTS can_create_subresellers BOOLEAN DEFAULT FALSE
+      `);
+      await pool.query(`
+        ALTER TABLE resellers
+        ADD COLUMN IF NOT EXISTS parent_reseller_id INTEGER REFERENCES resellers(id)
+      `);
+      await pool.query(`
+        ALTER TABLE resellers
+        ADD COLUMN IF NOT EXISTS is_subreseller BOOLEAN DEFAULT FALSE
+      `);
+      console.log('✅ Sub-resellers columns added to resellers table');
+    } catch (err) {
+      console.error('❌ Failed to add sub-resellers columns:', err.message);
+    }
+
+    // Transaction from_reseller_id column for credit transfers
+    try {
+      await pool.query(`
+        ALTER TABLE transactions
+        ADD COLUMN IF NOT EXISTS from_reseller_id INTEGER REFERENCES resellers(id)
+      `);
+      console.log('✅ from_reseller_id column added to transactions table');
+    } catch (err) {
+      console.error('❌ Failed to add from_reseller_id column:', err.message);
+    }
   } else {
     // SQLite schema
     db.exec(`
@@ -201,9 +235,13 @@ async function init() {
         credits INTEGER DEFAULT 0,
         status TEXT DEFAULT 'active',
         allow_cross_reseller_activation INTEGER DEFAULT 0,
+        can_create_subresellers INTEGER DEFAULT 0,
+        parent_reseller_id INTEGER,
+        is_subreseller INTEGER DEFAULT 0,
         created_by INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by) REFERENCES admins(id)
+        FOREIGN KEY (created_by) REFERENCES admins(id),
+        FOREIGN KEY (parent_reseller_id) REFERENCES resellers(id)
       );
 
       CREATE TABLE IF NOT EXISTS devices (
@@ -249,13 +287,15 @@ async function init() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         reseller_id INTEGER,
         admin_id INTEGER,
+        from_reseller_id INTEGER,
         type TEXT NOT NULL,
         amount INTEGER NOT NULL,
         description TEXT,
         mac_address TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (reseller_id) REFERENCES resellers(id),
-        FOREIGN KEY (admin_id) REFERENCES admins(id)
+        FOREIGN KEY (admin_id) REFERENCES admins(id),
+        FOREIGN KEY (from_reseller_id) REFERENCES resellers(id)
       );
 
       CREATE TABLE IF NOT EXISTS seller_contacts (
@@ -289,8 +329,39 @@ async function init() {
       if (!hasFlag) {
         db.prepare('ALTER TABLE resellers ADD COLUMN allow_cross_reseller_activation INTEGER DEFAULT 0').run();
       }
+      
+      // Sub-resellers columns
+      const hasCanCreateSub = resellerColumns.some((c) => c.name === 'can_create_subresellers');
+      if (!hasCanCreateSub) {
+        db.prepare('ALTER TABLE resellers ADD COLUMN can_create_subresellers INTEGER DEFAULT 0').run();
+        console.log('✅ can_create_subresellers column added');
+      }
+      
+      const hasParentId = resellerColumns.some((c) => c.name === 'parent_reseller_id');
+      if (!hasParentId) {
+        db.prepare('ALTER TABLE resellers ADD COLUMN parent_reseller_id INTEGER').run();
+        console.log('✅ parent_reseller_id column added');
+      }
+      
+      const hasIsSub = resellerColumns.some((c) => c.name === 'is_subreseller');
+      if (!hasIsSub) {
+        db.prepare('ALTER TABLE resellers ADD COLUMN is_subreseller INTEGER DEFAULT 0').run();
+        console.log('✅ is_subreseller column added');
+      }
     } catch (err) {
-      console.error('❌ Failed to ensure resellers.allow_cross_reseller_activation (SQLite):', err.message);
+      console.error('❌ Failed to ensure resellers columns (SQLite):', err.message);
+    }
+
+    // Transaction from_reseller_id column for credit transfers
+    try {
+      const transactionColumns = db.prepare("PRAGMA table_info(transactions)").all();
+      const hasFromReseller = transactionColumns.some((c) => c.name === 'from_reseller_id');
+      if (!hasFromReseller) {
+        db.prepare('ALTER TABLE transactions ADD COLUMN from_reseller_id INTEGER').run();
+        console.log('✅ from_reseller_id column added to transactions');
+      }
+    } catch (err) {
+      console.error('❌ Failed to add from_reseller_id column (SQLite):', err.message);
     }
   }
 

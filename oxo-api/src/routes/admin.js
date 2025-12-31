@@ -50,25 +50,28 @@ router.get('/dashboard', async (req, res) => {
   });
 });
 
-// List all resellers
+// List all resellers (only main resellers, not sub-resellers)
 router.get('/resellers', async (req, res) => {
   const resellers = await db.prepare(`
     SELECT r.*, 
            (SELECT COUNT(*) FROM devices WHERE reseller_id = r.id) as device_count,
-           (SELECT COUNT(*) FROM devices WHERE reseller_id = r.id AND status = 'active') as active_devices
+           (SELECT COUNT(*) FROM devices WHERE reseller_id = r.id AND status = 'active') as active_devices,
+           (SELECT COUNT(*) FROM resellers WHERE parent_reseller_id = r.id) as subreseller_count
     FROM resellers r
+    WHERE r.is_subreseller = 0 OR r.is_subreseller IS NULL
     ORDER BY r.created_at DESC
   `).all();
 
   res.json(resellers.map(r => ({
     ...r,
-    password: undefined
+    password: undefined,
+    can_create_subresellers: usePostgres ? r.can_create_subresellers : !!r.can_create_subresellers
   })));
 });
 
 // Create reseller
 router.post('/resellers', async (req, res) => {
-  const { email, password, name, credits, allow_cross_reseller_activation } = req.body;
+  const { email, password, name, credits, allow_cross_reseller_activation, can_create_subresellers } = req.body;
 
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Email, mot de passe et nom requis' });
@@ -82,17 +85,20 @@ router.post('/resellers', async (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, 10);
   const initialCredits = credits || 0;
   const allowCross = !!allow_cross_reseller_activation;
+  const canCreateSub = !!can_create_subresellers;
 
   const result = await db.prepare(`
-    INSERT INTO resellers (email, password, name, credits, created_by, allow_cross_reseller_activation)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO resellers (email, password, name, credits, created_by, allow_cross_reseller_activation, can_create_subresellers, is_subreseller)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     email,
     hashedPassword,
     name,
     initialCredits,
     req.user.id,
-    usePostgres ? allowCross : (allowCross ? 1 : 0)
+    usePostgres ? allowCross : (allowCross ? 1 : 0),
+    usePostgres ? canCreateSub : (canCreateSub ? 1 : 0),
+    usePostgres ? false : 0
   );
 
   const newResellerId = Number(result?.lastInsertRowid || 0);
@@ -110,6 +116,7 @@ router.post('/resellers', async (req, res) => {
     email,
     name,
     credits: initialCredits,
+    can_create_subresellers: canCreateSub,
     message: 'Revendeur créé avec succès'
   });
 });
@@ -117,7 +124,7 @@ router.post('/resellers', async (req, res) => {
 // Update reseller
 router.put('/resellers/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, status, password, allow_cross_reseller_activation } = req.body;
+  const { name, status, password, allow_cross_reseller_activation, can_create_subresellers } = req.body;
 
   const reseller = await db.prepare('SELECT * FROM resellers WHERE id = ?').get(id);
   if (!reseller) {
@@ -140,6 +147,11 @@ router.put('/resellers/:id', async (req, res) => {
   if (allow_cross_reseller_activation !== undefined) {
     const flagValue = usePostgres ? !!allow_cross_reseller_activation : (allow_cross_reseller_activation ? 1 : 0);
     await db.prepare('UPDATE resellers SET allow_cross_reseller_activation = ? WHERE id = ?').run(flagValue, id);
+  }
+
+  if (can_create_subresellers !== undefined) {
+    const flagValue = usePostgres ? !!can_create_subresellers : (can_create_subresellers ? 1 : 0);
+    await db.prepare('UPDATE resellers SET can_create_subresellers = ? WHERE id = ?').run(flagValue, id);
   }
 
   res.json({ message: 'Revendeur mis à jour' });
@@ -183,6 +195,15 @@ router.delete('/resellers/:id', async (req, res) => {
     return res.status(404).json({ error: 'Revendeur non trouvé' });
   }
 
+  // Get all sub-resellers
+  const subResellers = await db.prepare('SELECT id FROM resellers WHERE parent_reseller_id = ?').all(id);
+  
+  // Remove devices from sub-resellers and delete them
+  for (const sub of subResellers) {
+    await db.prepare('UPDATE devices SET reseller_id = NULL WHERE reseller_id = ?').run(sub.id);
+    await db.prepare('DELETE FROM resellers WHERE id = ?').run(sub.id);
+  }
+
   // Remove reseller's devices assignment
   await db.prepare('UPDATE devices SET reseller_id = NULL WHERE reseller_id = ?').run(id);
   
@@ -207,9 +228,14 @@ router.get('/devices', async (req, res) => {
 // Transaction history
 router.get('/transactions', async (req, res) => {
   const transactions = await db.prepare(`
-    SELECT t.*, r.name as reseller_name, r.email as reseller_email
+    SELECT t.*, 
+           r.name as reseller_name, 
+           r.email as reseller_email,
+           fr.name as from_reseller_name,
+           fr.email as from_reseller_email
     FROM transactions t
     LEFT JOIN resellers r ON t.reseller_id = r.id
+    LEFT JOIN resellers fr ON t.from_reseller_id = fr.id
     ORDER BY t.created_at DESC
     LIMIT 100
   `).all();

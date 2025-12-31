@@ -17,6 +17,7 @@ import { ResellerDevicesPage } from './pages/reseller/DevicesPage';
 import { PlaylistsPage } from './pages/reseller/PlaylistsPage';
 import { ActivatePage } from './pages/reseller/ActivatePage';
 import { ResellerTransactionsPage } from './pages/reseller/TransactionsPage';
+import { SubResellersPage } from './pages/reseller/SubResellersPage';
 
 function ProtectedRoute({
   children,
@@ -144,6 +145,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['reseller']}>
               <ResellerTransactionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reseller/subresellers"
+          element={
+            <ProtectedRoute allowedRoles={['reseller']}>
+              <SubResellersPage />
             </ProtectedRoute>
           }
         />

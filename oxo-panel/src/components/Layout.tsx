@@ -10,9 +10,11 @@ import {
   CreditCard,
   Store,
   MessageSquare,
+  UserPlus,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { resellerApi } from '../services/api';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,27 +22,46 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [canCreateSubResellers, setCanCreateSubResellers] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
   const isAdmin = user?.role === 'admin';
 
-  const navItems = isAdmin
-    ? [
-        { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-        { path: '/admin/resellers', icon: Users, label: 'Revendeurs' },
-        { path: '/admin/devices', icon: Tv, label: 'Appareils' },
-        { path: '/admin/transactions', icon: History, label: 'Transactions' },
-        { path: '/admin/seller-contacts', icon: Store, label: 'Points de vente' },
-        { path: '/admin/seller-requests', icon: MessageSquare, label: 'Demandes partenariat' },
-      ]
-    : [
-        { path: '/reseller', icon: LayoutDashboard, label: 'Dashboard' },
-        { path: '/reseller/devices', icon: Tv, label: 'Mes Appareils' },
-        { path: '/reseller/activate', icon: CreditCard, label: 'Activer MAC' },
-        { path: '/reseller/transactions', icon: History, label: 'Historique' },
-      ];
+  // Check if reseller can create sub-resellers
+  useEffect(() => {
+    const checkPermissions = async () => {
+      if (!isAdmin && user) {
+        try {
+          const response = await resellerApi.getMe();
+          setCanCreateSubResellers(response.data.can_create_subresellers === true);
+        } catch (error) {
+          console.error('Error checking permissions:', error);
+        }
+      }
+    };
+    checkPermissions();
+  }, [isAdmin, user]);
+
+  const adminNavItems = [
+    { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/admin/resellers', icon: Users, label: 'Revendeurs' },
+    { path: '/admin/devices', icon: Tv, label: 'Appareils' },
+    { path: '/admin/transactions', icon: History, label: 'Transactions' },
+    { path: '/admin/seller-contacts', icon: Store, label: 'Points de vente' },
+    { path: '/admin/seller-requests', icon: MessageSquare, label: 'Demandes partenariat' },
+  ];
+
+  const resellerNavItems = [
+    { path: '/reseller', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/reseller/devices', icon: Tv, label: 'Mes Appareils' },
+    { path: '/reseller/activate', icon: CreditCard, label: 'Activer MAC' },
+    ...(canCreateSubResellers ? [{ path: '/reseller/subresellers', icon: UserPlus, label: 'Sous-Revendeurs' }] : []),
+    { path: '/reseller/transactions', icon: History, label: 'Historique' },
+  ];
+
+  const navItems = isAdmin ? adminNavItems : resellerNavItems;
 
   const handleLogout = () => {
     logout();
