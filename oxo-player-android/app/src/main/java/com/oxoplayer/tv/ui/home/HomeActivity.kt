@@ -48,6 +48,7 @@ import com.oxoplayer.tv.ui.settings.SettingsActivity
 import com.oxoplayer.tv.ui.profile.ProfileSelectionActivity
 import com.oxoplayer.tv.data.WatchProgressManager
 import com.oxoplayer.tv.data.ProfileManager
+import com.oxoplayer.tv.data.MyListManager
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -122,6 +123,10 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var recentChannelsSection: View
     private lateinit var recentChannelsRecycler: RecyclerView
     
+    // My List section (Netflix style watchlist)
+    private lateinit var myListSection: View
+    private lateinit var myListRecycler: RecyclerView
+    
     // Top 10 / Popular sections (Netflix style)
     private lateinit var top10MoviesSection: View
     private lateinit var top10MoviesRecycler: RecyclerView
@@ -158,6 +163,7 @@ class HomeActivity : AppCompatActivity() {
         setupStatusBar()
         setupNavigation()
         setupHeroBanner()
+        setupMyList()
         setupContinueWatching()
         setupTop10Sections()
         setupContentRows()
@@ -199,6 +205,8 @@ class HomeActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
+        // Refresh My List section
+        refreshMyList()
         // Refresh continue watching sections when returning to home
         refreshContinueWatching()
         // Restart preview timer if on hero
@@ -1406,6 +1414,84 @@ class HomeActivity : AppCompatActivity() {
             .replace(Regex("[^a-z0-9\\s]"), "") // Remove special characters
             .replace(Regex("\\s+"), " ")        // Normalize spaces
             .trim()
+    }
+    
+    // ==================== My List (Netflix-style watchlist) ====================
+    
+    private fun setupMyList() {
+        myListSection = findViewById(R.id.myListSection)
+        myListRecycler = findViewById(R.id.myListRecycler)
+        myListRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        
+        refreshMyList()
+    }
+    
+    private fun refreshMyList() {
+        val myListItems = MyListManager.getRecent(10)
+        
+        if (myListItems.isNotEmpty()) {
+            myListSection.visibility = View.VISIBLE
+            myListRecycler.adapter = MyListAdapter(
+                items = myListItems,
+                onItemClick = { item ->
+                    // Navigate to movie or series detail
+                    if (item.type == "MOVIE" && item.streamId != null) {
+                        openMovieDetail(item.streamId, item.title, item.cover, item.containerExtension)
+                    } else if (item.type == "SERIES" && item.seriesId != null) {
+                        openSeriesDetail(item.seriesId, item.title, item.cover)
+                    }
+                },
+                onLongClick = { item ->
+                    // Show remove dialog
+                    showRemoveFromMyListDialog(item)
+                }
+            )
+            android.util.Log.d(TAG, "Showing ${myListItems.size} items in My List")
+        } else {
+            myListSection.visibility = View.GONE
+            android.util.Log.d(TAG, "My List is empty - HIDDEN")
+        }
+    }
+    
+    private fun openMovieDetail(streamId: Int, title: String, cover: String?, containerExtension: String?) {
+        // For now, play directly - can be enhanced to show detail page
+        val url = buildMovieStreamUrl(streamId, containerExtension ?: "mp4")
+        val intent = Intent(this, com.oxoplayer.tv.ui.player.PlayerActivity::class.java).apply {
+            putExtra("STREAM_URL", url)
+            putExtra("STREAM_TITLE", title)
+            putExtra("STREAM_TYPE", "MOVIE")
+            putExtra("STREAM_COVER", cover)
+            putExtra("MOVIE_STREAM_ID", streamId)
+            putExtra("MOVIE_CONTAINER", containerExtension)
+        }
+        startActivity(intent)
+    }
+    
+    private fun openSeriesDetail(seriesId: Int, title: String, cover: String?) {
+        val intent = Intent(this, com.oxoplayer.tv.ui.series.SeriesDetailActivity::class.java).apply {
+            putExtra("SERIES_ID", seriesId)
+            putExtra("SERIES_NAME", title)
+            putExtra("SERIES_COVER", cover)
+        }
+        startActivity(intent)
+    }
+    
+    private fun buildMovieStreamUrl(streamId: Int, extension: String): String {
+        val playlist = PlaylistRepository.currentPlaylist ?: return ""
+        return "${playlist.baseUrl}/movie/${playlist.username}/${playlist.password}/$streamId.$extension"
+    }
+    
+    private fun showRemoveFromMyListDialog(item: MyListManager.MyListItem) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Retirer de Ma Liste")
+            .setMessage("Voulez-vous retirer \"${item.title}\" de votre liste ?")
+            .setPositiveButton("Retirer") { _, _ ->
+                MyListManager.remove(item.id)
+                refreshMyList()
+                android.widget.Toast.makeText(this, "Retiré de Ma Liste", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
     }
     
     // ==================== Continue Watching ====================

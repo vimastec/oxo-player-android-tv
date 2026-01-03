@@ -8,6 +8,7 @@ import com.oxoplayer.tv.data.auth.FirebaseAuthHelper
 import com.oxoplayer.tv.data.preferences.PreferencesManager
 import com.oxoplayer.tv.data.WatchProgressManager
 import com.oxoplayer.tv.data.ProfileManager
+import com.oxoplayer.tv.data.MyListManager
 import com.oxoplayer.tv.data.SeriesConfigManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +48,9 @@ class OXOApplication : Application() {
         
         // Initialize watch progress manager for resume playback feature
         WatchProgressManager.init(this)
+        
+        // Initialize My List manager (Netflix-style watchlist)
+        MyListManager.init(this)
         
         // Initialize series configuration manager
         SeriesConfigManager.init(this)

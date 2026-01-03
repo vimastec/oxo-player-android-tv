@@ -28,6 +28,7 @@ import com.oxoplayer.tv.data.models.Series
 import com.oxoplayer.tv.data.models.SeriesPlaybackConfig
 import com.oxoplayer.tv.data.models.XtreamSeriesInfo
 import com.oxoplayer.tv.data.repository.XtreamRepository
+import com.oxoplayer.tv.data.MyListManager
 import kotlinx.coroutines.launch
 
 /**
@@ -63,6 +64,7 @@ class SeriesDetailActivity : AppCompatActivity() {
     private lateinit var divider2: View
     private lateinit var episodesTitle: TextView
     private lateinit var btnConfigurePlayback: Button
+    private lateinit var btnMyList: Button
     
     private val xtreamRepository = XtreamRepository()
     
@@ -129,11 +131,18 @@ class SeriesDetailActivity : AppCompatActivity() {
         divider2 = findViewById(R.id.divider2)
         episodesTitle = findViewById(R.id.episodesTitle)
         btnConfigurePlayback = findViewById(R.id.btnConfigurePlayback)
+        btnMyList = findViewById(R.id.btnMyList)
         
         // Setup configuration button
         btnConfigurePlayback.setOnClickListener {
             showConfigurationDialog()
         }
+        
+        // Setup My List button
+        btnMyList.setOnClickListener {
+            toggleMyList()
+        }
+        updateMyListButton()
         
         // Set initial data
         titleText.text = seriesName
@@ -394,6 +403,34 @@ class SeriesDetailActivity : AppCompatActivity() {
     private fun showLoading(show: Boolean) {
         progressBar.visibility = if (show) View.VISIBLE else View.GONE
     }
+    
+    // ==================== My List Functions ====================
+    
+    private fun toggleMyList() {
+        val isNowInList = MyListManager.toggleSeries(
+            seriesId = seriesId,
+            title = seriesName,
+            cover = seriesCover,
+            rating = null
+        )
+        
+        updateMyListButton()
+        
+        val message = if (isNowInList) "Ajouté à Ma Liste" else "Retiré de Ma Liste"
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun updateMyListButton() {
+        val isInList = MyListManager.isSeriesInList(seriesId)
+        
+        if (isInList) {
+            btnMyList.text = "✓ Dans Ma Liste"
+        } else {
+            btnMyList.text = "+ Ma Liste"
+        }
+    }
+    
+    // ==================== Configuration Dialog ====================
     
     private fun showConfigurationDialog() {
         if (seasons.isEmpty()) {

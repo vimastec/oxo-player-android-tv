@@ -494,6 +494,35 @@
                     android:orientation="horizontal" />
             </LinearLayout>
             
+            <!-- My List Section -->
+            <LinearLayout
+                android:id="@+id/myListSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="32dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📌 Ma Liste"
+                    android:textColor="@color/white"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:paddingStart="48dp"
+                    android:paddingEnd="48dp"
+                    android:paddingBottom="16dp" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/myListRecycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="280dp"
+                    android:clipToPadding="false"
+                    android:paddingStart="48dp"
+                    android:paddingEnd="48dp" />
+            </LinearLayout>
+            
             <!-- Continue Watching Movies Row -->
             <LinearLayout
                 android:id="@+id/continueMoviesSection"

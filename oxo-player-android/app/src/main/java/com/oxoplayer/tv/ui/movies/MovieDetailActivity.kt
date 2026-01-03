@@ -16,6 +16,7 @@ import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.models.XtreamMovieInfo
 import com.oxoplayer.tv.data.repository.XtreamRepository
 import com.oxoplayer.tv.ui.player.PlayerActivity
+import com.oxoplayer.tv.data.MyListManager
 import kotlinx.coroutines.launch
 
 /**
@@ -39,6 +40,9 @@ class MovieDetailActivity : AppCompatActivity() {
     private lateinit var movieCast: TextView
     private lateinit var btnPlay: CardView
     private lateinit var btnBack: CardView
+    private lateinit var btnMyList: CardView
+    private lateinit var myListIcon: ImageView
+    private lateinit var myListText: TextView
     private lateinit var loadingOverlay: FrameLayout
     
     // Containers
@@ -84,6 +88,9 @@ class MovieDetailActivity : AppCompatActivity() {
         movieCast = findViewById(R.id.movieCast)
         btnPlay = findViewById(R.id.btnPlay)
         btnBack = findViewById(R.id.btnBack)
+        btnMyList = findViewById(R.id.btnMyList)
+        myListIcon = findViewById(R.id.myListIcon)
+        myListText = findViewById(R.id.myListText)
         loadingOverlay = findViewById(R.id.loadingOverlay)
         
         ratingContainer = findViewById(R.id.ratingContainer)
@@ -117,8 +124,42 @@ class MovieDetailActivity : AppCompatActivity() {
             finish()
         }
         
+        // My List button
+        btnMyList.setOnClickListener {
+            toggleMyList()
+        }
+        
+        // Update My List button state
+        updateMyListButton()
+        
         // Focus handling for TV navigation
         btnPlay.requestFocus()
+    }
+    
+    private fun toggleMyList() {
+        val isNowInList = MyListManager.toggleMovie(
+            streamId = streamId,
+            title = movieName,
+            cover = movieCover,
+            containerExtension = containerExtension
+        )
+        
+        updateMyListButton()
+        
+        val message = if (isNowInList) "Ajouté à Ma Liste" else "Retiré de Ma Liste"
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun updateMyListButton() {
+        val isInList = MyListManager.isMovieInList(streamId)
+        
+        if (isInList) {
+            myListIcon.setImageResource(R.drawable.ic_check)
+            myListText.text = "Dans Ma Liste"
+        } else {
+            myListIcon.setImageResource(R.drawable.ic_add)
+            myListText.text = "Ma Liste"
+        }
     }
     
     private fun loadMovieDetails() {
