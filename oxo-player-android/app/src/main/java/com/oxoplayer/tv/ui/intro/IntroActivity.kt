@@ -3,6 +3,7 @@ package com.oxoplayer.tv.ui.intro
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.content.Intent
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -37,10 +38,11 @@ class IntroActivity : AppCompatActivity() {
     private var splashComplete = false
     private var pendingUpdateInfo: AppVersionInfo? = null
     private var pendingIsMandatory = false
+    private var mediaPlayer: MediaPlayer? = null
 
     companion object {
         private const val TAG = "IntroActivity"
-        private const val SPLASH_DURATION_MS = 3000L // 3 seconds
+        private const val SPLASH_DURATION_MS = 7000L // 7 seconds (match audio duration)
     }
     
     private fun clearPendingUpdateState() {
@@ -76,6 +78,9 @@ class IntroActivity : AppCompatActivity() {
         // Start animations
         startLogoAnimation()
         startLoadingDotsAnimation()
+        
+        // Play intro audio
+        playIntroAudio()
 
         // Check for updates if auto-update is enabled
         checkForUpdatesIfEnabled()
@@ -127,6 +132,34 @@ class IntroActivity : AppCompatActivity() {
             navigateToUpdate(pendingUpdateInfo!!, pendingIsMandatory)
         } else {
             navigateToWelcome()
+        }
+    }
+
+    private fun playIntroAudio() {
+        try {
+            mediaPlayer = MediaPlayer.create(this, R.raw.oxointroaudio)
+            mediaPlayer?.apply {
+                setVolume(1.0f, 1.0f)
+                start()
+                Log.d(TAG, "Intro audio started")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error playing intro audio", e)
+        }
+    }
+    
+    private fun stopIntroAudio() {
+        try {
+            mediaPlayer?.apply {
+                if (isPlaying) {
+                    stop()
+                }
+                release()
+            }
+            mediaPlayer = null
+            Log.d(TAG, "Intro audio stopped")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping intro audio", e)
         }
     }
 
@@ -187,8 +220,9 @@ class IntroActivity : AppCompatActivity() {
         if (hasNavigated) return
         hasNavigated = true
 
-        // Stop animations
+        // Stop animations and audio
         animatorSet?.cancel()
+        stopIntroAudio()
 
         // Navigate to WelcomeActivity
         val intent = Intent(this, WelcomeActivity::class.java)
@@ -203,8 +237,9 @@ class IntroActivity : AppCompatActivity() {
         if (hasNavigated) return
         hasNavigated = true
 
-        // Stop animations
+        // Stop animations and audio
         animatorSet?.cancel()
+        stopIntroAudio()
 
         // Navigate to UpdateActivity
         val intent = Intent(this, UpdateActivity::class.java).apply {
@@ -228,5 +263,6 @@ class IntroActivity : AppCompatActivity() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(null)
         animatorSet?.cancel()
+        stopIntroAudio()
     }
 }
