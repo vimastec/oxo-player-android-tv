@@ -25,16 +25,28 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Normalize host (remove http://, https://, trailing slashes)
+    // Normalize host (remove http://, https://, trailing slashes, and standard ports)
     let normalizedHost = host.trim()
       .replace(/^https?:\/\//, '')
       .replace(/\/$/, '')
+      .replace(/:8080$/, '')  // Remove standard IPTV port
+      .replace(/:80$/, '')    // Remove standard HTTP port
       .toLowerCase();
+    
+    // Also create version without any port for flexible matching
+    const hostWithoutPort = normalizedHost.replace(/:\d+$/, '');
 
-    // Find the host in database
-    const xtreamHost = await db.prepare(
+    // Find the host in database (try with port first, then without)
+    let xtreamHost = await db.prepare(
       'SELECT id, host, name, last_top10_update FROM xtream_hosts WHERE LOWER(host) = ? AND is_active = TRUE'
     ).get(normalizedHost);
+    
+    // If not found, try without port
+    if (!xtreamHost && hostWithoutPort !== normalizedHost) {
+      xtreamHost = await db.prepare(
+        'SELECT id, host, name, last_top10_update FROM xtream_hosts WHERE LOWER(host) = ? AND is_active = TRUE'
+      ).get(hostWithoutPort);
+    }
 
     if (!xtreamHost) {
       // Host not found - return empty Top 10 (app will fallback to client-side calculation)

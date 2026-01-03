@@ -1454,15 +1454,12 @@ class HomeActivity : AppCompatActivity() {
     }
     
     private fun openMovieDetail(streamId: Int, title: String, cover: String?, containerExtension: String?) {
-        // For now, play directly - can be enhanced to show detail page
-        val url = buildMovieStreamUrl(streamId, containerExtension ?: "mp4")
-        val intent = Intent(this, com.oxoplayer.tv.ui.player.PlayerActivity::class.java).apply {
-            putExtra("STREAM_URL", url)
-            putExtra("STREAM_TITLE", title)
-            putExtra("STREAM_TYPE", "MOVIE")
-            putExtra("STREAM_COVER", cover)
-            putExtra("MOVIE_STREAM_ID", streamId)
-            putExtra("MOVIE_CONTAINER", containerExtension)
+        // Open movie detail page (same as Top 10 movies)
+        val intent = Intent(this, com.oxoplayer.tv.ui.movies.MovieDetailActivity::class.java).apply {
+            putExtra("STREAM_ID", streamId)
+            putExtra("MOVIE_NAME", title)
+            putExtra("MOVIE_COVER", cover)
+            putExtra("CONTAINER_EXTENSION", containerExtension ?: "mp4")
         }
         startActivity(intent)
     }
@@ -1474,11 +1471,6 @@ class HomeActivity : AppCompatActivity() {
             putExtra("SERIES_COVER", cover)
         }
         startActivity(intent)
-    }
-    
-    private fun buildMovieStreamUrl(streamId: Int, extension: String): String {
-        val playlist = PlaylistRepository.currentPlaylist ?: return ""
-        return "${playlist.baseUrl}/movie/${playlist.username}/${playlist.password}/$streamId.$extension"
     }
     
     private fun showRemoveFromMyListDialog(item: MyListManager.MyListItem) {
