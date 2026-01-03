@@ -75,11 +75,17 @@ interface ApiService {
     ): Response<okhttp3.ResponseBody>
     
     /**
-     * Check for app updates (OTA)
+     * Check for app updates
      */
     @GET("app-version/check")
-    suspend fun checkUpdate(
-        @Query("versionCode") versionCode: Int
-    ): Response<UpdateCheckResponse>
+    suspend fun checkForUpdate(
+        @Query("versionCode") currentVersionCode: Int
+    ): Response<AppVersionResponse>
+    
+    /**
+     * Get latest app version
+     */
+    @GET("app-version/latest")
+    suspend fun getLatestVersion(): Response<AppVersionResponse>
 }
 

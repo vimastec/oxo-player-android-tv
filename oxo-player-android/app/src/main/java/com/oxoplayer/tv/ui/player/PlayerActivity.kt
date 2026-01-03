@@ -125,6 +125,9 @@ class PlayerActivity : AppCompatActivity() {
     private var resumePosition: Long = 0L
     private var shouldShowResumeDialog = false
     
+    // Track if video was playing before pause (to avoid auto-resume bug)
+    private var wasPlayingBeforePause = false
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_player)
@@ -257,6 +260,14 @@ class PlayerActivity : AppCompatActivity() {
         playerView.setControllerVisibilityListener(
             PlayerView.ControllerVisibilityListener { visibility ->
                 topBar?.visibility = visibility
+                
+                // When controller becomes visible, request focus on play/pause button
+                if (visibility == View.VISIBLE) {
+                    playerView.post {
+                        val playPauseButton = playerView.findViewById<ImageButton>(androidx.media3.ui.R.id.exo_play_pause)
+                        playPauseButton?.requestFocus()
+                    }
+                }
             }
         )
         
@@ -1693,6 +1704,9 @@ class PlayerActivity : AppCompatActivity() {
     
     override fun onPause() {
         super.onPause()
+        // Remember if video was playing before pause
+        wasPlayingBeforePause = player?.isPlaying == true
+        
         // Save watch progress before pausing
         saveWatchProgress()
         // Stop monitoring
@@ -1706,7 +1720,11 @@ class PlayerActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
-        player?.play()
+        // Only resume playback if it was playing before pause
+        // This fixes the bug where video auto-plays after user pauses
+        if (wasPlayingBeforePause) {
+            player?.play()
+        }
         // Resume position monitoring if playing series
         if (type == "SERIES" && player?.isPlaying == true) {
             startPositionMonitoring()

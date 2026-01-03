@@ -11,71 +11,105 @@ import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.oxoplayer.tv.BuildConfig
+import com.oxoplayer.tv.OXOApplication
 import com.oxoplayer.tv.data.api.RetrofitClient
-import com.oxoplayer.tv.data.models.UpdateCheckResponse
+import com.oxoplayer.tv.data.models.AppVersionInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * UpdateManager - Handles OTA updates for OXO Player
- * 
- * Features:
- * - Check for updates from API
- * - Download APK from Cloudflare R2
- * - Install APK using system installer
+ * Manages app updates - checks for new versions and handles APK download/install
  */
-object UpdateManager {
+class UpdateManager(private val context: Context) {
     
-    private const val TAG = "UpdateManager"
-    private const val APK_FILE_NAME = "oxo-player-update.apk"
+    companion object {
+        private const val TAG = "UpdateManager"
+        private const val APK_FILE_NAME = "oxo-player-update.apk"
+        private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L // 6 hours
+    }
     
+    private val prefs = OXOApplication.getInstance().preferencesManager
     private var downloadId: Long = -1
-    private var onDownloadComplete: ((Boolean) -> Unit)? = null
+    private var pendingInstallInfo: AppVersionInfo? = null
+    
+    data class UpdateCheckResult(
+        val hasUpdate: Boolean,
+        val isMandatory: Boolean = false,
+        val versionInfo: AppVersionInfo? = null,
+        val error: String? = null
+    )
     
     /**
-     * Check if an update is available
-     * 
-     * @return UpdateCheckResponse with update info, or null if error
+     * Check if there's a new version available
      */
-    suspend fun checkForUpdate(): Result<UpdateCheckResponse> = withContext(Dispatchers.IO) {
-        try {
-            val currentVersionCode = BuildConfig.VERSION_CODE
-            Log.d(TAG, "Checking for updates. Current version code: $currentVersionCode")
-            
-            val response = RetrofitClient.apiService.checkUpdate(currentVersionCode)
-            
-            if (response.isSuccessful && response.body() != null) {
-                val updateResponse = response.body()!!
-                Log.d(TAG, "Update check result: updateAvailable=${updateResponse.updateAvailable}")
-                Result.success(updateResponse)
-            } else {
-                val errorMsg = response.errorBody()?.string() ?: "Unknown error"
-                Log.e(TAG, "Update check failed: $errorMsg")
-                Result.failure(Exception("Failed to check for updates: $errorMsg"))
+    suspend fun checkForUpdate(forceCheck: Boolean = false): UpdateCheckResult {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Check if we should skip (unless forced)
+                if (!forceCheck && !shouldCheckForUpdate()) {
+                    Log.d(TAG, "Skipping update check - not enough time passed")
+                    return@withContext UpdateCheckResult(hasUpdate = false)
+                }
+                
+                val currentVersionCode = BuildConfig.VERSION_CODE
+                Log.d(TAG, "Checking for updates. Current version code: $currentVersionCode")
+                
+                val response = RetrofitClient.apiService.checkForUpdate(currentVersionCode)
+                
+                if (response.isSuccessful && response.body() != null) {
+                    val body = response.body()!!
+                    
+                    // Update last check time
+                    prefs.lastUpdateCheck = System.currentTimeMillis()
+                    
+                    if (body.updateAvailable && body.latestVersion != null) {
+                        val latestVersion = body.latestVersion
+                        
+                        // Check if user has skipped this version (unless mandatory)
+                        val isMandatory = body.isMandatory == true || latestVersion.isMandatory
+                        if (!isMandatory && latestVersion.versionCode == prefs.skippedVersion) {
+                            Log.d(TAG, "User has skipped version ${latestVersion.versionCode}")
+                            return@withContext UpdateCheckResult(hasUpdate = false)
+                        }
+                        
+                        Log.d(TAG, "Update available: ${latestVersion.versionName} (${latestVersion.versionCode})")
+                        return@withContext UpdateCheckResult(
+                            hasUpdate = true,
+                            isMandatory = isMandatory,
+                            versionInfo = latestVersion
+                        )
+                    } else {
+                        Log.d(TAG, "No update available")
+                        return@withContext UpdateCheckResult(hasUpdate = false)
+                    }
+                } else {
+                    val errorMsg = "Failed to check for updates: ${response.code()}"
+                    Log.e(TAG, errorMsg)
+                    return@withContext UpdateCheckResult(hasUpdate = false, error = errorMsg)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking for updates", e)
+                return@withContext UpdateCheckResult(hasUpdate = false, error = e.message)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking for updates", e)
-            Result.failure(e)
         }
     }
     
     /**
-     * Download the update APK
-     * 
-     * @param context Application context
-     * @param downloadUrl URL of the APK to download
-     * @param onProgress Progress callback (0-100)
-     * @param onComplete Completion callback (success: Boolean)
+     * Check if enough time has passed since last update check
      */
-    fun downloadUpdate(
-        context: Context,
-        downloadUrl: String,
-        versionName: String,
-        onComplete: (Boolean) -> Unit
-    ) {
+    private fun shouldCheckForUpdate(): Boolean {
+        val lastCheck = prefs.lastUpdateCheck
+        val now = System.currentTimeMillis()
+        return (now - lastCheck) >= CHECK_INTERVAL_MS
+    }
+    
+    /**
+     * Download the APK update
+     */
+    fun downloadUpdate(versionInfo: AppVersionInfo, onProgress: (Int) -> Unit, onComplete: (File?) -> Unit, onError: (String) -> Unit) {
         try {
-            Log.d(TAG, "Starting download from: $downloadUrl")
+            pendingInstallInfo = versionInfo
             
             // Delete old APK if exists
             val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), APK_FILE_NAME)
@@ -85,86 +119,89 @@ object UpdateManager {
             
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             
-            val request = DownloadManager.Request(Uri.parse(downloadUrl)).apply {
-                setTitle("OXO Player v$versionName")
-                setDescription("Téléchargement de la mise à jour...")
-                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, APK_FILE_NAME)
-                setAllowedOverMetered(true)
-                setAllowedOverRoaming(true)
-            }
+            val request = DownloadManager.Request(Uri.parse(versionInfo.downloadUrl))
+                .setTitle("OXO Player v${versionInfo.versionName}")
+                .setDescription("Téléchargement de la mise à jour...")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+                .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, APK_FILE_NAME)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
             
             downloadId = downloadManager.enqueue(request)
-            onDownloadComplete = onComplete
+            Log.d(TAG, "Download started with ID: $downloadId")
             
-            // Register receiver for download complete
+            // Register receiver for download completion
             val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED)
+                context.registerReceiver(object : BroadcastReceiver() {
+                    override fun onReceive(ctx: Context?, intent: Intent?) {
+                        val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
+                        if (id == downloadId) {
+                            context.unregisterReceiver(this)
+                            handleDownloadComplete(downloadManager, onComplete, onError)
+                        }
+                    }
+                }, filter, Context.RECEIVER_EXPORTED)
             } else {
-                context.registerReceiver(downloadReceiver, filter)
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                context.registerReceiver(object : BroadcastReceiver() {
+                    override fun onReceive(ctx: Context?, intent: Intent?) {
+                        val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
+                        if (id == downloadId) {
+                            context.unregisterReceiver(this)
+                            handleDownloadComplete(downloadManager, onComplete, onError)
+                        }
+                    }
+                }, filter)
             }
             
-            Log.d(TAG, "Download started with ID: $downloadId")
+            // Start progress monitoring (simplified - could use a separate thread for progress)
+            onProgress(0)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error starting download", e)
-            onComplete(false)
+            onError(e.message ?: "Erreur lors du téléchargement")
         }
     }
     
-    /**
-     * BroadcastReceiver for download completion
-     */
-    private val downloadReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
+    private fun handleDownloadComplete(downloadManager: DownloadManager, onComplete: (File?) -> Unit, onError: (String) -> Unit) {
+        val query = DownloadManager.Query().setFilterById(downloadId)
+        val cursor = downloadManager.query(query)
+        
+        if (cursor.moveToFirst()) {
+            val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+            val status = cursor.getInt(statusIndex)
             
-            if (id == downloadId && context != null) {
-                Log.d(TAG, "Download completed for ID: $id")
-                
-                val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                val query = DownloadManager.Query().setFilterById(downloadId)
-                val cursor = downloadManager.query(query)
-                
-                if (cursor.moveToFirst()) {
-                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                    val status = cursor.getInt(statusIndex)
-                    
-                    val success = status == DownloadManager.STATUS_SUCCESSFUL
-                    Log.d(TAG, "Download status: $status, success: $success")
-                    
-                    onDownloadComplete?.invoke(success)
-                    
-                    // Unregister receiver
-                    try {
-                        context.unregisterReceiver(this)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Receiver already unregistered")
+            when (status) {
+                DownloadManager.STATUS_SUCCESSFUL -> {
+                    val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), APK_FILE_NAME)
+                    if (apkFile.exists()) {
+                        Log.d(TAG, "Download complete: ${apkFile.absolutePath}")
+                        onComplete(apkFile)
+                    } else {
+                        onError("Fichier APK introuvable")
                     }
                 }
-                cursor.close()
+                DownloadManager.STATUS_FAILED -> {
+                    val reasonIndex = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
+                    val reason = cursor.getInt(reasonIndex)
+                    Log.e(TAG, "Download failed with reason: $reason")
+                    onError("Échec du téléchargement (code: $reason)")
+                }
+                else -> {
+                    onError("État de téléchargement inconnu")
+                }
             }
         }
+        cursor.close()
     }
     
     /**
      * Install the downloaded APK
-     * 
-     * @param context Application context
      */
-    fun installUpdate(context: Context) {
+    fun installUpdate(apkFile: File) {
         try {
-            val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), APK_FILE_NAME)
-            
-            if (!apkFile.exists()) {
-                Log.e(TAG, "APK file not found: ${apkFile.absolutePath}")
-                return
-            }
-            
-            Log.d(TAG, "Installing APK from: ${apkFile.absolutePath}")
-            
-            val apkUri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 FileProvider.getUriForFile(
                     context,
                     "${context.packageName}.fileprovider",
@@ -174,34 +211,39 @@ object UpdateManager {
                 Uri.fromFile(apkFile)
             }
             
-            val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
             
-            context.startActivity(installIntent)
+            context.startActivity(intent)
+            Log.d(TAG, "Install intent started for: ${apkFile.absolutePath}")
             
         } catch (e: Exception) {
             Log.e(TAG, "Error installing update", e)
+            throw e
         }
     }
     
     /**
-     * Get the downloaded APK file
+     * Skip this version (user chose to skip)
      */
-    fun getDownloadedApkFile(context: Context): File? {
-        val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), APK_FILE_NAME)
-        return if (apkFile.exists()) apkFile else null
+    fun skipVersion(versionCode: Int) {
+        prefs.skippedVersion = versionCode
+        Log.d(TAG, "Skipping version: $versionCode")
     }
     
     /**
-     * Delete the downloaded APK file
+     * Cancel ongoing download
      */
-    fun deleteDownloadedApk(context: Context) {
-        val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), APK_FILE_NAME)
-        if (apkFile.exists()) {
-            apkFile.delete()
-            Log.d(TAG, "Deleted old APK file")
+    fun cancelDownload() {
+        if (downloadId != -1L) {
+            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            downloadManager.remove(downloadId)
+            downloadId = -1L
+            Log.d(TAG, "Download cancelled")
         }
     }
 }
+
+

@@ -42,4 +42,9 @@
     <color name="gradient_start">#00000000</color>
     <color name="gradient_end">#E6000000</color>
     <color name="hero_overlay">#80000000</color>
+    
+    <!-- Update dialog -->
+    <color name="dark">#0F0F0F</color>
+    <color name="text_secondary">#9CA3AF</color>
+    <color name="card">#262626</color>
 </resources>

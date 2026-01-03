@@ -256,24 +256,25 @@ data class SeriesPlaybackConfig(
 )
 
 /**
- * OTA Update - Check Response
+ * App Version Response (for OTA updates)
  */
-data class UpdateCheckResponse(
+data class AppVersionResponse(
     val updateAvailable: Boolean,
-    val isMandatory: Boolean? = false,
-    val currentVersion: Int? = null,
-    val latestVersion: LatestVersionInfo? = null,
-    val latestVersionCode: Int? = null,
-    val message: String? = null
+    val isMandatory: Boolean?,
+    val currentVersion: Int?,
+    val message: String?,
+    val latestVersion: AppVersionInfo?
 )
 
-data class LatestVersionInfo(
+data class AppVersionInfo(
     val versionCode: Int,
     val versionName: String,
     val downloadUrl: String,
-    val changelog: String? = null,
-    val minSupportedVersion: Int? = null
-)
+    val changelog: String?,
+    val isMandatory: Boolean,
+    val minSupportedVersion: Int?,
+    val releaseDate: String?
+) : java.io.Serializable
 
 
 

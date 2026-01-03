@@ -42,10 +42,26 @@ class IntroActivity : AppCompatActivity() {
         private const val TAG = "IntroActivity"
         private const val SPLASH_DURATION_MS = 3000L // 3 seconds
     }
+    
+    private fun clearPendingUpdateState() {
+        // Clear update pending state if we just started fresh
+        val prefs = getSharedPreferences("update_prefs", MODE_PRIVATE)
+        val pendingInstall = prefs.getBoolean("pending_install", false)
+        if (pendingInstall) {
+            Log.d(TAG, "Clearing pending update state - app started fresh after update")
+            prefs.edit()
+                .remove("pending_install")
+                .remove("target_version")
+                .apply()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_intro)
+
+        // Clear any pending update state (in case we just got updated)
+        clearPendingUpdateState()
 
         logoImage = findViewById(R.id.logoImage)
         dot1 = findViewById(R.id.dot1)
@@ -83,7 +99,7 @@ class IntroActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 Log.d(TAG, "Checking for updates...")
-                val result = updateManager.checkForUpdate(forceCheck = false)
+                val result = updateManager.checkForUpdate(forceCheck = true)
                 
                 if (result.hasUpdate && result.versionInfo != null) {
                     Log.d(TAG, "Update available: ${result.versionInfo.versionName}")

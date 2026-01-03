@@ -21,6 +21,13 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_PLAYLIST_UPDATE = "last_playlist_update"
         private const val KEY_CURRENT_PLAYLIST_NAME = "current_playlist_name"
         private const val KEY_CURRENT_PLAYLIST_ID = "current_playlist_id"
+        private const val KEY_ADMIN_PIN = "admin_pin"
+        private const val KEY_ADMIN_PIN_SET = "admin_pin_set"
+        private const val KEY_AUTO_UPDATE_ENABLED = "auto_update_enabled"
+        private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
+        private const val KEY_SKIPPED_VERSION = "skipped_version"
+        
+        const val DEFAULT_ADMIN_PIN = "9876"
     }
     
     var macAddress: String?
@@ -62,6 +69,38 @@ class PreferencesManager(context: Context) {
     var currentPlaylistId: Int
         get() = prefs.getInt(KEY_CURRENT_PLAYLIST_ID, -1)
         set(value) = prefs.edit().putInt(KEY_CURRENT_PLAYLIST_ID, value).apply()
+    
+    // Admin PIN for profile management
+    var adminPin: String
+        get() = prefs.getString(KEY_ADMIN_PIN, DEFAULT_ADMIN_PIN) ?: DEFAULT_ADMIN_PIN
+        set(value) = prefs.edit().putString(KEY_ADMIN_PIN, value).apply()
+    
+    var isAdminPinSet: Boolean
+        get() = prefs.getBoolean(KEY_ADMIN_PIN_SET, false)
+        set(value) = prefs.edit().putBoolean(KEY_ADMIN_PIN_SET, value).apply()
+    
+    // Auto-update settings
+    var autoUpdateEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_UPDATE_ENABLED, true) // Enabled by default
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_UPDATE_ENABLED, value).apply()
+    
+    var lastUpdateCheck: Long
+        get() = prefs.getLong(KEY_LAST_UPDATE_CHECK, 0)
+        set(value) = prefs.edit().putLong(KEY_LAST_UPDATE_CHECK, value).apply()
+    
+    var skippedVersion: Int
+        get() = prefs.getInt(KEY_SKIPPED_VERSION, 0)
+        set(value) = prefs.edit().putInt(KEY_SKIPPED_VERSION, value).apply()
+    
+    fun verifyAdminPin(pin: String): Boolean {
+        // Accept both custom PIN and default PIN (9876 always works as recovery)
+        return pin == adminPin || pin == DEFAULT_ADMIN_PIN
+    }
+    
+    fun setAdminPinFirstTime(pin: String) {
+        adminPin = pin
+        isAdminPinSet = true
+    }
     
     fun clear() {
         prefs.edit().clear().apply()

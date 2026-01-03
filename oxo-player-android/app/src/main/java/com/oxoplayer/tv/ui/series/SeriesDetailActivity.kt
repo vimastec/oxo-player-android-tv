@@ -344,6 +344,20 @@ class SeriesDetailActivity : AppCompatActivity() {
         }
         seasonsRecyclerView.adapter = seasonsAdapter
         
+        // Scroll to episodes section
+        episodesTitle.post {
+            var parent = episodesTitle.parent
+            while (parent != null && parent !is android.widget.ScrollView) {
+                parent = parent.parent
+            }
+            (parent as? android.widget.ScrollView)?.smoothScrollTo(0, episodesTitle.top - 32)
+        }
+        
+        // Give focus to first episode for TV navigation
+        episodesRecyclerView.post {
+            episodesRecyclerView.getChildAt(0)?.requestFocus()
+        }
+        
         android.util.Log.d(TAG, "Selected season ${season.seasonNumber} with ${currentSeasonEpisodes.size} episodes")
     }
     

@@ -98,6 +98,7 @@
 
             <!-- Center Playback Controls -->
             <LinearLayout
+                android:id="@+id/playback_controls_container"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:gravity="center"
@@ -108,32 +109,43 @@
                     android:id="@id/exo_rew"
                     android:layout_width="56dp"
                     android:layout_height="56dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:background="@drawable/btn_player_control_bg"
                     android:scaleType="fitCenter"
                     android:padding="8dp"
                     android:contentDescription="Rewind"
-                    android:focusable="true" />
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:nextFocusRight="@id/exo_play_pause"
+                    android:nextFocusLeft="@id/exo_rew" />
 
-                <!-- Play/Pause Button -->
+                <!-- Play/Pause Button (Default Focus) -->
                 <ImageButton
                     android:id="@id/exo_play_pause"
                     android:layout_width="72dp"
                     android:layout_height="72dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:background="@drawable/btn_player_control_bg"
                     android:scaleType="fitCenter"
                     android:contentDescription="Play/Pause"
-                    android:focusable="true" />
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:nextFocusLeft="@id/exo_rew"
+                    android:nextFocusRight="@id/exo_ffwd" />
 
                 <!-- Fast Forward Button -->
                 <ImageButton
                     android:id="@id/exo_ffwd"
                     android:layout_width="56dp"
                     android:layout_height="56dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:background="@drawable/btn_player_control_bg"
                     android:scaleType="fitCenter"
                     android:padding="8dp"
                     android:contentDescription="Fast Forward"
-                    android:focusable="true" />
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:nextFocusLeft="@id/exo_play_pause"
+                    android:nextFocusRight="@id/exo_ffwd" />
 
             </LinearLayout>
 

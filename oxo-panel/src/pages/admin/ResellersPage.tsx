@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, CreditCard, Loader2, X, Users } from 'lucide-react';
+import { Plus, Edit2, Trash2, CreditCard, Loader2, X, Users, Power } from 'lucide-react';
 import { adminApi } from '../../services/api';
 
 interface Reseller {
@@ -21,12 +21,22 @@ export function ResellersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedReseller, setSelectedReseller] = useState<Reseller | null>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
     credits: 0,
+    allow_cross_reseller_activation: false,
+    can_create_subresellers: false,
+  });
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    password: '',
+    status: 'active',
+    creditsChange: 0,
+    creditsAction: 'add' as 'add' | 'remove' | 'set',
     allow_cross_reseller_activation: false,
     can_create_subresellers: false,
   });
@@ -124,6 +134,63 @@ export function ResellersPage() {
     }
   };
 
+  const openEditModal = (reseller: Reseller) => {
+    setSelectedReseller(reseller);
+    setEditFormData({
+      name: reseller.name,
+      password: '',
+      status: reseller.status,
+      creditsChange: 0,
+      creditsAction: 'add',
+      allow_cross_reseller_activation: reseller.allow_cross_reseller_activation === true || reseller.allow_cross_reseller_activation === 1,
+      can_create_subresellers: reseller.can_create_subresellers === true || reseller.can_create_subresellers === 1,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReseller) return;
+    setIsSubmitting(true);
+    try {
+      // Mettre à jour les infos du revendeur
+      const updateData: any = {
+        name: editFormData.name,
+        status: editFormData.status,
+        allow_cross_reseller_activation: editFormData.allow_cross_reseller_activation,
+        can_create_subresellers: editFormData.can_create_subresellers,
+      };
+      
+      if (editFormData.password) {
+        updateData.password = editFormData.password;
+      }
+
+      await adminApi.updateReseller(selectedReseller.id, updateData);
+
+      // Gérer les crédits si nécessaire
+      if (editFormData.creditsChange > 0) {
+        if (editFormData.creditsAction === 'add') {
+          await adminApi.addCredits(selectedReseller.id, editFormData.creditsChange, 'Ajout manuel par admin');
+        } else if (editFormData.creditsAction === 'remove') {
+          await adminApi.addCredits(selectedReseller.id, -editFormData.creditsChange, 'Retrait manuel par admin');
+        } else if (editFormData.creditsAction === 'set') {
+          const diff = editFormData.creditsChange - selectedReseller.credits;
+          if (diff !== 0) {
+            await adminApi.addCredits(selectedReseller.id, diff, diff > 0 ? 'Ajustement solde par admin' : 'Ajustement solde par admin');
+          }
+        }
+      }
+
+      setShowEditModal(false);
+      setSelectedReseller(null);
+      loadResellers();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erreur lors de la mise à jour');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -217,6 +284,13 @@ export function ResellersPage() {
                     <td>
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => openEditModal(reseller)}
+                          className="p-2 rounded-lg hover:bg-card text-primary"
+                          title="Modifier"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => {
                             setSelectedReseller(reseller);
                             setShowCreditsModal(true);
@@ -228,10 +302,10 @@ export function ResellersPage() {
                         </button>
                         <button
                           onClick={() => handleToggleStatus(reseller)}
-                          className="p-2 rounded-lg hover:bg-card text-warning"
+                          className={`p-2 rounded-lg hover:bg-card ${reseller.status === 'active' ? 'text-warning' : 'text-success'}`}
                           title={reseller.status === 'active' ? 'Suspendre' : 'Activer'}
                         >
-                          <Edit2 className="w-4 h-4" />
+                          <Power className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(reseller.id)}
@@ -376,6 +450,244 @@ export function ResellersPage() {
                 </button>
                 <button type="submit" disabled={isSubmitting} className="btn btn-success flex-1">
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Ajouter'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal - Professional & Mobile Responsive */}
+      {showEditModal && selectedReseller && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div 
+            className="modal-content w-full max-w-md mx-4 sm:mx-auto max-h-[90vh] overflow-y-auto" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-primary to-secondary p-4 sm:p-6 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                    <Edit2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-white">Modifier Revendeur</h2>
+                    <p className="text-white/80 text-sm">{selectedReseller.email}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowEditModal(false)} 
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </div>
+
+            {/* Current Stats */}
+            <div className="bg-card border-b border-border p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-primary" />
+                <span className="text-muted">Solde actuel:</span>
+              </div>
+              <span className="text-2xl font-bold text-primary">{selectedReseller.credits}</span>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleUpdate} className="p-4 sm:p-6 space-y-5">
+              
+              {/* Section: Informations */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted uppercase tracking-wide flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Informations
+                </h3>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Nom du revendeur</label>
+                  <input
+                    type="text"
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    className="w-full h-12 px-4 text-base rounded-xl border border-border bg-dark focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Nouveau mot de passe
+                    <span className="text-muted font-normal ml-2">(optionnel)</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={editFormData.password}
+                    onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                    placeholder="Laisser vide pour ne pas changer"
+                    className="w-full h-12 px-4 text-base rounded-xl border border-border bg-dark focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Statut du compte</label>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditFormData({ ...editFormData, status: 'active' })}
+                      className={`flex-1 h-12 rounded-xl font-medium transition-all ${
+                        editFormData.status === 'active'
+                          ? 'bg-success text-white'
+                          : 'bg-dark border border-border text-muted hover:border-success'
+                      }`}
+                    >
+                      ✓ Actif
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditFormData({ ...editFormData, status: 'suspended' })}
+                      className={`flex-1 h-12 rounded-xl font-medium transition-all ${
+                        editFormData.status === 'suspended'
+                          ? 'bg-error text-white'
+                          : 'bg-dark border border-border text-muted hover:border-error'
+                      }`}
+                    >
+                      ✗ Suspendu
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section: Crédits */}
+              <div className="space-y-4 pt-4 border-t border-border">
+                <h3 className="text-sm font-semibold text-muted uppercase tracking-wide flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Gestion des crédits
+                </h3>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditFormData({ ...editFormData, creditsAction: 'add' })}
+                    className={`flex-1 h-11 rounded-xl text-sm font-medium transition-all ${
+                      editFormData.creditsAction === 'add'
+                        ? 'bg-success text-white'
+                        : 'bg-dark border border-border text-muted hover:border-success'
+                    }`}
+                  >
+                    + Ajouter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFormData({ ...editFormData, creditsAction: 'remove' })}
+                    className={`flex-1 h-11 rounded-xl text-sm font-medium transition-all ${
+                      editFormData.creditsAction === 'remove'
+                        ? 'bg-error text-white'
+                        : 'bg-dark border border-border text-muted hover:border-error'
+                    }`}
+                  >
+                    − Retirer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFormData({ ...editFormData, creditsAction: 'set' })}
+                    className={`flex-1 h-11 rounded-xl text-sm font-medium transition-all ${
+                      editFormData.creditsAction === 'set'
+                        ? 'bg-primary text-white'
+                        : 'bg-dark border border-border text-muted hover:border-primary'
+                    }`}
+                  >
+                    = Définir
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    {editFormData.creditsAction === 'add' && 'Crédits à ajouter'}
+                    {editFormData.creditsAction === 'remove' && 'Crédits à retirer'}
+                    {editFormData.creditsAction === 'set' && 'Nouveau solde'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editFormData.creditsChange || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, creditsChange: parseInt(e.target.value) || 0 })}
+                    placeholder="0"
+                    className="w-full h-14 px-4 text-xl font-bold text-center rounded-xl border border-border bg-dark focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                {editFormData.creditsChange > 0 && (
+                  <div className={`p-3 rounded-xl text-center font-medium ${
+                    editFormData.creditsAction === 'add' ? 'bg-success/20 text-success' :
+                    editFormData.creditsAction === 'remove' ? 'bg-error/20 text-error' :
+                    'bg-primary/20 text-primary'
+                  }`}>
+                    Nouveau solde: {' '}
+                    <span className="text-lg">
+                      {editFormData.creditsAction === 'add' && (selectedReseller.credits + editFormData.creditsChange)}
+                      {editFormData.creditsAction === 'remove' && Math.max(0, selectedReseller.credits - editFormData.creditsChange)}
+                      {editFormData.creditsAction === 'set' && editFormData.creditsChange}
+                    </span>
+                    {' '} crédits
+                  </div>
+                )}
+              </div>
+
+              {/* Section: Permissions */}
+              <div className="space-y-3 pt-4 border-t border-border">
+                <h3 className="text-sm font-semibold text-muted uppercase tracking-wide">
+                  Permissions
+                </h3>
+
+                <label className="flex items-center gap-4 p-3 bg-dark rounded-xl cursor-pointer hover:bg-card transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editFormData.allow_cross_reseller_activation}
+                    onChange={(e) => setEditFormData({ ...editFormData, allow_cross_reseller_activation: e.target.checked })}
+                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Transfert MAC inter-revendeur</p>
+                    <p className="text-xs text-muted">Peut activer des MAC d'autres revendeurs</p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-4 p-3 bg-dark rounded-xl cursor-pointer hover:bg-card transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editFormData.can_create_subresellers}
+                    onChange={(e) => setEditFormData({ ...editFormData, can_create_subresellers: e.target.checked })}
+                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Créer des sous-revendeurs</p>
+                    <p className="text-xs text-muted">Peut créer et gérer ses propres revendeurs</p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="button" 
+                  onClick={() => setShowEditModal(false)} 
+                  className="flex-1 h-12 rounded-xl font-medium bg-dark border border-border text-muted hover:bg-card transition-colors"
+                >
+                  Annuler
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting} 
+                  className="flex-1 h-12 rounded-xl font-medium bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <span>Enregistrer</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

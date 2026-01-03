@@ -4,10 +4,47 @@
  */
 
 const express = require('express');
-const { db } = require('../database');
+const { db, usePostgres } = require('../database');
 const { generateDeviceKey } = require('../migrations/add_portal_support');
 
 const router = express.Router();
+
+/**
+ * Auto-register Xtream host for Top 10 service
+ * Called when a playlist is added via the portal
+ */
+async function autoRegisterXtreamHost(host, username, password) {
+  if (!host) return;
+  
+  try {
+    // Normalize host
+    let normalizedHost = host.trim()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '')
+      .toLowerCase();
+
+    // Check if host already exists
+    const existingHost = await db.prepare(
+      'SELECT id FROM xtream_hosts WHERE LOWER(host) = ?'
+    ).get(normalizedHost);
+
+    if (!existingHost) {
+      // Auto-generate a name from the host
+      const autoName = normalizedHost.split('.')[0].toUpperCase();
+
+      // Insert new host
+      await db.prepare(`
+        INSERT INTO xtream_hosts (host, name, test_username, test_password, is_active)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(normalizedHost, autoName, username || null, password || null, usePostgres ? true : 1);
+
+      console.log(`🆕 Auto-registered Xtream host from Portal: ${normalizedHost}`);
+    }
+  } catch (error) {
+    // Silently fail - this is not critical
+    console.error('Failed to auto-register Xtream host:', error.message);
+  }
+}
 
 // Simple captcha storage (in production, use Redis or similar)
 const captchaStore = new Map();
@@ -268,6 +305,9 @@ router.post('/playlists/xtream', async (req, res) => {
     INSERT INTO playlists (device_id, name, playlist_type, xtream_host, xtream_username, xtream_password, epg_url, is_protected, pin, is_active)
     VALUES (?, ?, 'xtream', ?, ?, ?, ?, ?, ?, 1)
   `).run(device.id, name, cleanHost, username, password, epg_url || null, is_protected ? 1 : 0, is_protected ? pin : null);
+
+  // Auto-register host for Top 10 service
+  await autoRegisterXtreamHost(cleanHost, username, password);
 
   res.json({
     success: true,

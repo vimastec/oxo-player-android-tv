@@ -6,7 +6,6 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
@@ -19,10 +18,8 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.oxoplayer.tv.OXOApplication
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.repository.DeviceRepository
-import com.oxoplayer.tv.data.update.UpdateManager
 import com.oxoplayer.tv.ui.main.MainActivity
 import com.oxoplayer.tv.ui.profile.ProfileSelectionActivity
-import com.oxoplayer.tv.ui.update.UpdateActivity
 import com.oxoplayer.tv.data.ProfileManager
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
@@ -60,65 +57,6 @@ class ActivationActivity : AppCompatActivity() {
         preferencesManager = OXOApplication.getInstance().preferencesManager
         
         initViews()
-        
-        // Check for updates first
-        checkForUpdates()
-    }
-    
-    /**
-     * Check for app updates before proceeding
-     */
-    private fun checkForUpdates() {
-        statusText.text = "🔄 Vérification des mises à jour..."
-        progressBar.visibility = View.VISIBLE
-        
-        lifecycleScope.launch {
-            try {
-                val result = UpdateManager.checkForUpdate()
-                
-                result.onSuccess { updateResponse ->
-                    if (updateResponse.updateAvailable && updateResponse.latestVersion != null) {
-                        Log.d("ActivationActivity", "Update available: v${updateResponse.latestVersion.versionName}")
-                        
-                        // Navigate to update screen
-                        val intent = UpdateActivity.createIntent(
-                            this@ActivationActivity,
-                            updateResponse.latestVersion,
-                            updateResponse.isMandatory ?: false
-                        )
-                        startActivity(intent)
-                        
-                        // If mandatory, finish this activity
-                        if (updateResponse.isMandatory == true) {
-                            finish()
-                        } else {
-                            // Continue with normal flow if update is optional
-                            proceedWithActivation()
-                        }
-                    } else {
-                        Log.d("ActivationActivity", "App is up to date")
-                        proceedWithActivation()
-                    }
-                }
-                
-                result.onFailure { error ->
-                    Log.w("ActivationActivity", "Update check failed: ${error.message}")
-                    // Continue anyway if update check fails
-                    proceedWithActivation()
-                }
-                
-            } catch (e: Exception) {
-                Log.e("ActivationActivity", "Error checking updates", e)
-                // Continue anyway
-                proceedWithActivation()
-            }
-        }
-    }
-    
-    /**
-     * Continue with normal activation flow
-     */
-    private fun proceedWithActivation() {
         checkDeviceActivation()
         startAutoRefresh()
     }

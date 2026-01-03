@@ -88,6 +88,16 @@ export const adminApi = {
   updateSellerRequest: (id: number, data: { status: string }) =>
     api.put(`/admin/seller-requests/${id}`, data),
   deleteSellerRequest: (id: number) => api.delete(`/admin/seller-requests/${id}`),
+  
+  // Xtream Hosts (for Top 10 service)
+  getXtreamHosts: () => api.get('/admin/xtream-hosts'),
+  createXtreamHost: (data: { host: string; name?: string; test_username?: string; test_password?: string }) =>
+    api.post('/admin/xtream-hosts', data),
+  updateXtreamHost: (id: number, data: { name?: string; test_username?: string; test_password?: string; is_active?: boolean }) =>
+    api.put(`/admin/xtream-hosts/${id}`, data),
+  deleteXtreamHost: (id: number) => api.delete(`/admin/xtream-hosts/${id}`),
+  refreshXtreamHostTop10: (id: number) => api.post(`/admin/xtream-hosts/${id}/refresh`),
+  refreshAllXtreamHostsTop10: () => api.post('/admin/xtream-hosts/refresh-all'),
 };
 
 // Reseller

@@ -172,6 +172,33 @@ async function init() {
         status TEXT DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS xtream_hosts (
+        id SERIAL PRIMARY KEY,
+        host TEXT UNIQUE NOT NULL,
+        name TEXT,
+        test_username TEXT,
+        test_password TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        last_top10_update TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS top10_cache (
+        id SERIAL PRIMARY KEY,
+        host_id INTEGER NOT NULL REFERENCES xtream_hosts(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        poster_url TEXT,
+        xtream_id INTEGER,
+        stream_icon TEXT,
+        cover TEXT,
+        container_extension TEXT,
+        badge TEXT,
+        tmdb_id INTEGER,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `;
     
     await db.exec(schema);
@@ -320,6 +347,34 @@ async function init() {
         status TEXT DEFAULT 'pending',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS xtream_hosts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        host TEXT UNIQUE NOT NULL,
+        name TEXT,
+        test_username TEXT,
+        test_password TEXT,
+        is_active INTEGER DEFAULT 1,
+        last_top10_update DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS top10_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        host_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        rank INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        poster_url TEXT,
+        xtream_id INTEGER,
+        stream_icon TEXT,
+        cover TEXT,
+        container_extension TEXT,
+        badge TEXT,
+        tmdb_id INTEGER,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (host_id) REFERENCES xtream_hosts(id) ON DELETE CASCADE
+      );
     `);
 
     // Ensure new columns exist on already-created tables (SQLite)
@@ -379,6 +434,23 @@ async function init() {
       'Super Admin'
     );
     console.log('✅ Default admin account created');
+  }
+
+  // Create default Xtream hosts for Top 10
+  const defaultHosts = [
+    { host: 'bouygues-cdn.r1v.us', name: 'King', username: 'hey3829mm', password: 'XgLAS97hld7itEX' },
+    { host: '99.rohs.lol', name: 'Net', username: '7q28kslubb', password: 'wt5eb9lqtc' },
+    { host: 's0751.x.smline.xyz:2082', name: 'Smart', username: '460016685691014', password: '4600166' }
+  ];
+
+  for (const h of defaultHosts) {
+    const existingHost = await db.prepare('SELECT id FROM xtream_hosts WHERE host = ?').get(h.host);
+    if (!existingHost) {
+      await db.prepare(
+        'INSERT INTO xtream_hosts (host, name, test_username, test_password, is_active) VALUES (?, ?, ?, ?, ?)'
+      ).run(h.host, h.name, h.username, h.password, usePostgres ? true : 1);
+      console.log(`✅ Default Xtream host "${h.name}" (${h.host}) created`);
+    }
   }
 
   console.log('✅ Database initialized');

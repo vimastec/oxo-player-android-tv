@@ -11,6 +11,7 @@ import { AdminTransactionsPage } from './pages/admin/TransactionsPage';
 import { SellerContactsPage } from './pages/admin/SellerContactsPage';
 import { SellerRequestsPage } from './pages/admin/SellerRequestsPage';
 import { AppVersionsPage } from './pages/admin/AppVersionsPage';
+import { HostsPage } from './pages/admin/HostsPage';
 
 // Reseller pages
 import { ResellerDashboardPage } from './pages/reseller/DashboardPage';
@@ -112,6 +113,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AppVersionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/hosts"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <HostsPage />
             </ProtectedRoute>
           }
         />

@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
+}
+
+// Load keystore credentials from local.properties (not in git)
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
 }
 
 android {
@@ -12,25 +21,30 @@ android {
         applicationId = "com.oxoplayer.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 22
+        versionName = "1.6.1"
         
         // API Configuration
         buildConfigField("String", "API_BASE_URL", "\"https://oxo-api-production.up.railway.app/api/\"")
+        
+        // TMDB API Keys (loaded from local.properties - not in source control)
+        buildConfigField("String", "TMDB_API_KEY", "\"${localProperties.getProperty("TMDB_API_KEY", "")}\"")
+        buildConfigField("String", "TMDB_ACCESS_TOKEN", "\"${localProperties.getProperty("TMDB_ACCESS_TOKEN", "")}\"")
     }
 
     signingConfigs {
         create("release") {
             storeFile = file("../oxo-release-key.jks")
-            storePassword = "oxoplayer2024"
-            keyAlias = "oxo-player"
-            keyPassword = "oxoplayer2024"
+            storePassword = localProperties.getProperty("KEYSTORE_STORE_PASSWORD")
+            keyAlias = localProperties.getProperty("KEYSTORE_KEY_ALIAS")
+            keyPassword = localProperties.getProperty("KEYSTORE_KEY_PASSWORD")
         }
     }
 
     buildTypes {
         release {
-            // ProGuard disabled - causes Gson TypeToken issues
+            // ProGuard disabled to avoid Gson/Retrofit issues
+            // API keys are protected via local.properties (not in source control)
             isMinifyEnabled = false
             isShrinkResources = false
             signingConfig = signingConfigs.getByName("release")
@@ -123,3 +137,4 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
 }
+

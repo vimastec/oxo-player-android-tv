@@ -6,11 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    
-    <!-- Permissions for OTA Updates -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="28" />
     
     <!-- TV Feature -->
     <uses-feature
@@ -32,9 +28,9 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
 
-        <!-- Splash / Activation Activity -->
+        <!-- Intro Video Activity (Launcher) -->
         <activity
-            android:name=".ui.activation.ActivationActivity"
+            android:name=".ui.intro.IntroActivity"
             android:exported="true"
             android:screenOrientation="landscape"
             android:theme="@style/Theme.OXOPlayer">
@@ -44,6 +40,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Welcome Page Activity -->
+        <activity
+            android:name=".ui.welcome.WelcomeActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.OXOPlayer" />
+
+        <!-- Activation Activity -->
+        <activity
+            android:name=".ui.activation.ActivationActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.OXOPlayer" />
 
         <!-- Profile Selection Activity -->
         <activity
@@ -118,7 +128,7 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.OXOPlayer" />
 
-        <!-- Update Activity (OTA Updates) -->
+        <!-- Update Activity -->
         <activity
             android:name=".ui.update.UpdateActivity"
             android:exported="false"

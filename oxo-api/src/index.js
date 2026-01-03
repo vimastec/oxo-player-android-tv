@@ -15,6 +15,8 @@ const deviceRoutes = require('./routes/device');
 const portalRoutes = require('./routes/portal');
 // App Version routes for OTA updates
 const appVersionRoutes = require('./routes/appVersion');
+// Top 10 routes for pre-calculated trending content
+const top10Routes = require('./routes/top10');
 
 // Security middleware
 const {
@@ -152,6 +154,9 @@ app.use('/api/portal', portalRoutes);
 
 // App Version routes (for OTA updates)
 app.use('/api/app-version', appVersionRoutes);
+
+// Top 10 routes (public - for Android app)
+app.use('/api/top10', top10Routes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -11,9 +11,11 @@ import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.oxoplayer.tv.BuildConfig
 import com.oxoplayer.tv.OXOApplication
 import com.oxoplayer.tv.R
 import com.oxoplayer.tv.data.DataManager
@@ -22,13 +24,18 @@ import com.oxoplayer.tv.data.models.PlaylistItem
 import com.oxoplayer.tv.data.models.XtreamCredentials
 import com.oxoplayer.tv.data.repository.DeviceRepository
 import com.oxoplayer.tv.data.repository.XtreamRepository
+import com.oxoplayer.tv.data.update.UpdateManager
 import com.oxoplayer.tv.ui.activation.ActivationActivity
+import com.oxoplayer.tv.ui.update.UpdateActivity
 import kotlinx.coroutines.launch
 
 class SettingsActivity : AppCompatActivity() {
     
     private lateinit var deviceRepository: DeviceRepository
+    private lateinit var updateManager: UpdateManager
     private lateinit var currentPlaylistName: TextView
+    private lateinit var autoUpdateSwitch: SwitchCompat
+    private lateinit var updateStatusText: TextView
     private var selectedPlaylistId: Int? = null
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,6 +43,7 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
         
         deviceRepository = DeviceRepository(this)
+        updateManager = UpdateManager(this)
         val prefs = OXOApplication.getInstance().preferencesManager
         
         // Display device info
@@ -60,6 +68,55 @@ class SettingsActivity : AppCompatActivity() {
                 showPlaylistSelector()
             }
             requestFocus()
+        }
+        
+        // Update section
+        setupUpdateSection()
+    }
+    
+    private fun setupUpdateSection() {
+        val prefs = OXOApplication.getInstance().preferencesManager
+        
+        // Current version
+        findViewById<TextView>(R.id.currentVersionValue).text = "v${BuildConfig.VERSION_NAME}"
+        
+        // Auto-update switch
+        autoUpdateSwitch = findViewById(R.id.autoUpdateSwitch)
+        autoUpdateSwitch.isChecked = prefs.autoUpdateEnabled
+        autoUpdateSwitch.setOnCheckedChangeListener { _, isChecked ->
+            prefs.autoUpdateEnabled = isChecked
+        }
+        
+        // Update status
+        updateStatusText = findViewById(R.id.updateStatusText)
+        
+        // Check for updates button
+        findViewById<Button>(R.id.checkUpdateButton).setOnClickListener {
+            checkForUpdates()
+        }
+    }
+    
+    private fun checkForUpdates() {
+        updateStatusText.text = "🔄 Vérification en cours..."
+        updateStatusText.visibility = View.VISIBLE
+        
+        lifecycleScope.launch {
+            val result = updateManager.checkForUpdate(forceCheck = true)
+            
+            if (result.hasUpdate && result.versionInfo != null) {
+                updateStatusText.text = "✅ Nouvelle version disponible: v${result.versionInfo.versionName}"
+                
+                // Open update activity
+                val intent = Intent(this@SettingsActivity, UpdateActivity::class.java).apply {
+                    putExtra(UpdateActivity.EXTRA_VERSION_INFO, result.versionInfo)
+                    putExtra(UpdateActivity.EXTRA_IS_MANDATORY, result.isMandatory)
+                }
+                startActivity(intent)
+            } else if (result.error != null) {
+                updateStatusText.text = "❌ Erreur: ${result.error}"
+            } else {
+                updateStatusText.text = "✅ Vous avez la dernière version"
+            }
         }
     }
     
