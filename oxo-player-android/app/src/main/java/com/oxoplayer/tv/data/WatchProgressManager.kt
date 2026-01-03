@@ -294,11 +294,17 @@ object WatchProgressManager {
     
     /**
      * Get recently watched series (in progress)
+     * Only returns the LATEST episode per series (not all episodes)
      * @param limit Maximum number of series to return
      */
     fun getRecentSeries(limit: Int = 5): List<WatchProgress> {
         return progressCache.values
             .filter { it.type == "SERIES" && !it.isFinished }
+            .sortedByDescending { it.lastWatched }
+            // Group by seriesId and keep only the most recent episode per series
+            .groupBy { it.seriesId ?: it.url } // Use seriesId, fallback to url if null
+            .values
+            .mapNotNull { episodes -> episodes.firstOrNull() } // Keep only the latest episode
             .sortedByDescending { it.lastWatched }
             .take(limit)
     }
