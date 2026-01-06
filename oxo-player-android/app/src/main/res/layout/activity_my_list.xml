@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/black">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="48dp"
+        android:paddingEnd="48dp"
+        android:paddingTop="32dp"
+        android:paddingBottom="24dp">
+
+        <ImageView
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_back"
+            android:padding="8dp"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Retour" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="16dp"
+            android:text="📌 Ma Liste"
+            android:textColor="@color/white"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/itemCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 éléments"
+            android:textColor="@color/light_gray"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="48dp">
+
+            <!-- Empty State -->
+            <LinearLayout
+                android:id="@+id/emptyState"
+                android:layout_width="match_parent"
+                android:layout_height="400dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    android:src="@drawable/ic_add"
+                    android:alpha="0.3" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:text="Votre liste est vide"
+                    android:textColor="@color/white"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Ajoutez des films et séries depuis leurs pages de détails"
+                    android:textColor="@color/light_gray"
+                    android:textSize="16sp"
+                    android:gravity="center" />
+            </LinearLayout>
+
+            <!-- Movies Section -->
+            <LinearLayout
+                android:id="@+id/moviesSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🎬 Films"
+                    android:textColor="@color/white"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:paddingStart="48dp"
+                    android:paddingEnd="48dp"
+                    android:paddingBottom="16dp" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/moviesRecycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:paddingStart="48dp"
+                    android:paddingEnd="48dp"
+                    android:minHeight="280dp" />
+            </LinearLayout>
+
+            <!-- Series Section -->
+            <LinearLayout
+                android:id="@+id/seriesSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="32dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📺 Séries"
+                    android:textColor="@color/white"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:paddingStart="48dp"
+                    android:paddingEnd="48dp"
+                    android:paddingBottom="16dp" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/seriesRecycler"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:paddingStart="48dp"
+                    android:paddingEnd="48dp"
+                    android:minHeight="280dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>
+

@@ -84,10 +84,18 @@ object DataManager {
     
     /**
      * Set Xtream credentials and enable Xtream mode for series
+     * Also updates MyListManager with the playlist ID
      */
-    fun initXtreamCredentials(credentials: XtreamCredentials) {
+    fun initXtreamCredentials(credentials: XtreamCredentials, playlistId: Int? = null) {
         this._xtreamCredentials = credentials
         this.isXtreamEnabled = true
+        
+        // Update MyListManager with playlist ID to separate lists per playlist
+        playlistId?.let { 
+            MyListManager.setCurrentPlaylist(it)
+            android.util.Log.d("DataManager", "MyListManager updated with playlistId: $it")
+        }
+        
         android.util.Log.d("DataManager", "Xtream enabled - Host: ${credentials.host}")
     }
     

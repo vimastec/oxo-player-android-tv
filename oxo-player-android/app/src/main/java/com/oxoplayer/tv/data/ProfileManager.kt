@@ -134,6 +134,8 @@ object ProfileManager {
         
         // Initialize WatchProgressManager with this profile
         WatchProgressManager.setCurrentProfile(profile.id)
+        // Initialize MyListManager with this profile
+        MyListManager.setCurrentProfile(profile.id)
     }
     
     /**

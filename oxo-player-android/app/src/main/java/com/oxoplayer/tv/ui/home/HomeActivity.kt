@@ -123,9 +123,6 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var recentChannelsSection: View
     private lateinit var recentChannelsRecycler: RecyclerView
     
-    // My List section (Netflix style watchlist)
-    private lateinit var myListSection: View
-    private lateinit var myListRecycler: RecyclerView
     
     // Top 10 / Popular sections (Netflix style)
     private lateinit var top10MoviesSection: View
@@ -163,7 +160,6 @@ class HomeActivity : AppCompatActivity() {
         setupStatusBar()
         setupNavigation()
         setupHeroBanner()
-        setupMyList()
         setupContinueWatching()
         setupTop10Sections()
         setupContentRows()
@@ -205,8 +201,6 @@ class HomeActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
-        // Refresh My List section
-        refreshMyList()
         // Refresh continue watching sections when returning to home
         refreshContinueWatching()
         // Restart preview timer if on hero
@@ -257,6 +251,7 @@ class HomeActivity : AppCompatActivity() {
         val navLiveTV = findViewById<TextView>(R.id.navLiveTV)
         val navMovies = findViewById<TextView>(R.id.navMovies)
         val navSeries = findViewById<TextView>(R.id.navSeries)
+        val navMyList = findViewById<TextView>(R.id.navMyList)
         
         navHome.setOnClickListener {
             // Already on home, do nothing or scroll to top
@@ -272,6 +267,10 @@ class HomeActivity : AppCompatActivity() {
         
         navSeries.setOnClickListener {
             startActivity(Intent(this, SeriesActivity::class.java))
+        }
+        
+        navMyList.setOnClickListener {
+            startActivity(Intent(this, com.oxoplayer.tv.ui.mylist.MyListActivity::class.java))
         }
         
         // Top right buttons
@@ -320,7 +319,7 @@ class HomeActivity : AppCompatActivity() {
         }
         
         // Focus animations for navigation items
-        val navItems = listOf(navHome, navLiveTV, navMovies, navSeries, btnSearch, btnSettings, profileSection)
+        val navItems = listOf(navHome, navLiveTV, navMovies, navSeries, navMyList, btnSearch, btnSettings, profileSection)
         navItems.forEach { view ->
             view.setOnFocusChangeListener { v, hasFocus ->
                 if (v is TextView) {
@@ -1416,75 +1415,6 @@ class HomeActivity : AppCompatActivity() {
             .trim()
     }
     
-    // ==================== My List (Netflix-style watchlist) ====================
-    
-    private fun setupMyList() {
-        myListSection = findViewById(R.id.myListSection)
-        myListRecycler = findViewById(R.id.myListRecycler)
-        myListRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        
-        refreshMyList()
-    }
-    
-    private fun refreshMyList() {
-        val myListItems = MyListManager.getRecent(10)
-        
-        if (myListItems.isNotEmpty()) {
-            myListSection.visibility = View.VISIBLE
-            myListRecycler.adapter = MyListAdapter(
-                items = myListItems,
-                onItemClick = { item ->
-                    // Navigate to movie or series detail
-                    if (item.type == "MOVIE" && item.streamId != null) {
-                        openMovieDetail(item.streamId, item.title, item.cover, item.containerExtension)
-                    } else if (item.type == "SERIES" && item.seriesId != null) {
-                        openSeriesDetail(item.seriesId, item.title, item.cover)
-                    }
-                },
-                onLongClick = { item ->
-                    // Show remove dialog
-                    showRemoveFromMyListDialog(item)
-                }
-            )
-            android.util.Log.d(TAG, "Showing ${myListItems.size} items in My List")
-        } else {
-            myListSection.visibility = View.GONE
-            android.util.Log.d(TAG, "My List is empty - HIDDEN")
-        }
-    }
-    
-    private fun openMovieDetail(streamId: Int, title: String, cover: String?, containerExtension: String?) {
-        // Open movie detail page (same as Top 10 movies)
-        val intent = Intent(this, com.oxoplayer.tv.ui.movies.MovieDetailActivity::class.java).apply {
-            putExtra("STREAM_ID", streamId)
-            putExtra("MOVIE_NAME", title)
-            putExtra("MOVIE_COVER", cover)
-            putExtra("CONTAINER_EXTENSION", containerExtension ?: "mp4")
-        }
-        startActivity(intent)
-    }
-    
-    private fun openSeriesDetail(seriesId: Int, title: String, cover: String?) {
-        val intent = Intent(this, com.oxoplayer.tv.ui.series.SeriesDetailActivity::class.java).apply {
-            putExtra("SERIES_ID", seriesId)
-            putExtra("SERIES_NAME", title)
-            putExtra("SERIES_COVER", cover)
-        }
-        startActivity(intent)
-    }
-    
-    private fun showRemoveFromMyListDialog(item: MyListManager.MyListItem) {
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Retirer de Ma Liste")
-            .setMessage("Voulez-vous retirer \"${item.title}\" de votre liste ?")
-            .setPositiveButton("Retirer") { _, _ ->
-                MyListManager.remove(item.id)
-                refreshMyList()
-                android.widget.Toast.makeText(this, "Retiré de Ma Liste", android.widget.Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Annuler", null)
-            .show()
-    }
     
     // ==================== Continue Watching ====================
     

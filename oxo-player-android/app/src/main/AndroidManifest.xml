@@ -105,6 +105,13 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.OXOPlayer" />
 
+        <!-- My List Activity -->
+        <activity
+            android:name=".ui.mylist.MyListActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.OXOPlayer" />
+
         <!-- Video Player Activity -->
         <activity
             android:name=".ui.player.PlayerActivity"

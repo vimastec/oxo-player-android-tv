@@ -17,6 +17,8 @@ import com.oxoplayer.tv.data.models.AppVersionInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import android.os.Handler
+import android.os.Looper
 
 /**
  * Manages app updates - checks for new versions and handles APK download/install
@@ -32,6 +34,8 @@ class UpdateManager(private val context: Context) {
     private val prefs = OXOApplication.getInstance().preferencesManager
     private var downloadId: Long = -1
     private var pendingInstallInfo: AppVersionInfo? = null
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private var progressRunnable: Runnable? = null
     
     data class UpdateCheckResult(
         val hasUpdate: Boolean,
@@ -155,8 +159,8 @@ class UpdateManager(private val context: Context) {
                 }, filter)
             }
             
-            // Start progress monitoring (simplified - could use a separate thread for progress)
-            onProgress(0)
+            // Start progress monitoring
+            startProgressMonitoring(downloadManager, onProgress)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error starting download", e)
@@ -164,7 +168,55 @@ class UpdateManager(private val context: Context) {
         }
     }
     
+    /**
+     * Monitor download progress and report it via callback
+     */
+    private fun startProgressMonitoring(downloadManager: DownloadManager, onProgress: (Int) -> Unit) {
+        progressRunnable = object : Runnable {
+            override fun run() {
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                val cursor = downloadManager.query(query)
+                
+                if (cursor.moveToFirst()) {
+                    val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                    val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                    
+                    val bytesDownloaded = cursor.getLong(bytesDownloadedIndex)
+                    val bytesTotal = cursor.getLong(bytesTotalIndex)
+                    val status = cursor.getInt(statusIndex)
+                    
+                    if (bytesTotal > 0) {
+                        val progress = ((bytesDownloaded * 100) / bytesTotal).toInt()
+                        onProgress(progress)
+                        Log.d(TAG, "Download progress: $progress% ($bytesDownloaded / $bytesTotal)")
+                    }
+                    
+                    // Continue monitoring if still downloading
+                    if (status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PENDING) {
+                        progressHandler.postDelayed(this, 500) // Check every 500ms
+                    }
+                }
+                cursor.close()
+            }
+        }
+        
+        // Start monitoring
+        progressHandler.post(progressRunnable!!)
+    }
+    
+    /**
+     * Stop progress monitoring
+     */
+    private fun stopProgressMonitoring() {
+        progressRunnable?.let { progressHandler.removeCallbacks(it) }
+        progressRunnable = null
+    }
+    
     private fun handleDownloadComplete(downloadManager: DownloadManager, onComplete: (File?) -> Unit, onError: (String) -> Unit) {
+        // Stop progress monitoring
+        stopProgressMonitoring()
+        
         val query = DownloadManager.Query().setFilterById(downloadId)
         val cursor = downloadManager.query(query)
         

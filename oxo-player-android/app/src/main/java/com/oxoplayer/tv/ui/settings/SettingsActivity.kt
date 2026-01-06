@@ -186,9 +186,14 @@ class SettingsActivity : AppCompatActivity() {
             val result = deviceRepository.getPlaylistById(playlist.id)
             
             result.onSuccess { playlistResponse ->
-                // Save current playlist name
+                // Save current playlist name and ID
                 OXOApplication.getInstance().preferencesManager.currentPlaylistName = playlist.name
+                OXOApplication.getInstance().preferencesManager.currentPlaylistId = playlist.id
                 currentPlaylistName.text = playlist.name
+                
+                // IMPORTANT: Clear all cached data when changing playlist
+                DataManager.clear()
+                android.util.Log.d("SettingsActivity", "Cache cleared for playlist change")
                 
                 // Initialize playlist based on type
                 if (playlistResponse.playlistType == "xtream" && playlistResponse.xtream != null) {
@@ -200,7 +205,7 @@ class SettingsActivity : AppCompatActivity() {
                     )
                     
                     XtreamClient.initialize(credentials)
-                    DataManager.initXtreamCredentials(credentials)
+                    DataManager.initXtreamCredentials(credentials, OXOApplication.getInstance().preferencesManager.currentPlaylistId)
                     
                     // Reload categories
                     loadXtreamCategories()
@@ -210,7 +215,7 @@ class SettingsActivity : AppCompatActivity() {
                     
                     if (m3uCredentials != null) {
                         XtreamClient.initialize(m3uCredentials)
-                        DataManager.initXtreamCredentials(m3uCredentials)
+                        DataManager.initXtreamCredentials(m3uCredentials, OXOApplication.getInstance().preferencesManager.currentPlaylistId)
                         loadXtreamCategories()
                     } else {
                         // Pure M3U - need to reload

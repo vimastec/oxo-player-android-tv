@@ -87,5 +87,13 @@ interface ApiService {
      */
     @GET("app-version/latest")
     suspend fun getLatestVersion(): Response<AppVersionResponse>
+    
+    /**
+     * Generate a link code for easy device activation
+     */
+    @POST("device/link-code")
+    suspend fun generateLinkCode(
+        @Body request: LinkCodeRequest
+    ): Response<LinkCodeResponse>
 }
 

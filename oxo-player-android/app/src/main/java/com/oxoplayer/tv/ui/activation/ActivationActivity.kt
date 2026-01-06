@@ -4,11 +4,13 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -23,6 +25,9 @@ import com.oxoplayer.tv.ui.profile.ProfileSelectionActivity
 import com.oxoplayer.tv.data.ProfileManager
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 class ActivationActivity : AppCompatActivity() {
     
@@ -38,6 +43,17 @@ class ActivationActivity : AppCompatActivity() {
     private lateinit var continueButton: Button
     private lateinit var qrCodeImage: ImageView
     private lateinit var changePlaylistButton: Button
+    
+    // Link Code views
+    private lateinit var linkCodeSection: LinearLayout
+    private lateinit var linkCodeChar1: TextView
+    private lateinit var linkCodeChar2: TextView
+    private lateinit var linkCodeChar3: TextView
+    private lateinit var linkCodeChar4: TextView
+    private lateinit var linkCodeTimer: TextView
+    private lateinit var generateNewCodeButton: Button
+    private var linkCodeCountdownTimer: CountDownTimer? = null
+    private var hasValidLinkCode = false
     
     // Auto-refresh system
     private val refreshHandler = Handler(Looper.getMainLooper())
@@ -64,6 +80,7 @@ class ActivationActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         stopAutoRefresh()
+        linkCodeCountdownTimer?.cancel()
     }
     
     override fun onPause() {
@@ -135,6 +152,20 @@ class ActivationActivity : AppCompatActivity() {
         changePlaylistButton.setOnClickListener {
             // Open Settings to change playlist
             startActivity(Intent(this, com.oxoplayer.tv.ui.settings.SettingsActivity::class.java))
+        }
+        
+        // Link Code views
+        linkCodeSection = findViewById(R.id.linkCodeSection)
+        linkCodeChar1 = findViewById(R.id.linkCodeChar1)
+        linkCodeChar2 = findViewById(R.id.linkCodeChar2)
+        linkCodeChar3 = findViewById(R.id.linkCodeChar3)
+        linkCodeChar4 = findViewById(R.id.linkCodeChar4)
+        linkCodeTimer = findViewById(R.id.linkCodeTimer)
+        generateNewCodeButton = findViewById(R.id.generateNewCodeButton)
+        
+        generateNewCodeButton.setOnClickListener {
+            hasValidLinkCode = false
+            generateLinkCode()
         }
         
         // QR Code will be generated after device registration with MAC and device key
@@ -218,10 +249,16 @@ class ActivationActivity : AppCompatActivity() {
                             navigateToMain()
                         } else {
                             showNoPlaylist()
-                            // Show change playlist button even without playlist
                             changePlaylistButton.visibility = View.VISIBLE
-                            // Keep auto-refresh active (waiting for playlist)
-                            android.util.Log.d("ActivationActivity", "Waiting for playlist (auto-refresh active)...")
+                            // Show link code section
+                            linkCodeSection.visibility = View.VISIBLE
+                            // Generate code only if not already valid
+                            if (!hasValidLinkCode) {
+                                android.util.Log.d("ActivationActivity", "No valid link code, generating...")
+                                generateLinkCode()
+                            } else {
+                                android.util.Log.d("ActivationActivity", "Link code already valid, keeping displayed")
+                            }
                         }
                     }
                     "active" -> {
@@ -229,14 +266,23 @@ class ActivationActivity : AppCompatActivity() {
                         if (registration.hasPlaylist) {
                             // Playlist configured! Stop auto-refresh and navigate
                             stopAutoRefresh()
+                            linkCodeCountdownTimer?.cancel()
+                            linkCodeSection.visibility = View.GONE
+                            hasValidLinkCode = false
                             changePlaylistButton.visibility = View.VISIBLE
                             navigateToMain()
                         } else {
                             showNoPlaylist()
-                            // Show change playlist button even without playlist
                             changePlaylistButton.visibility = View.VISIBLE
-                            // Keep auto-refresh active (waiting for playlist)
-                            android.util.Log.d("ActivationActivity", "Waiting for playlist (auto-refresh active)...")
+                            // Show link code section
+                            linkCodeSection.visibility = View.VISIBLE
+                            // Generate code only if not already valid
+                            if (!hasValidLinkCode) {
+                                android.util.Log.d("ActivationActivity", "No valid link code, generating...")
+                                generateLinkCode()
+                            } else {
+                                android.util.Log.d("ActivationActivity", "Link code already valid, keeping displayed")
+                            }
                         }
                     }
                     "expired" -> {
@@ -262,6 +308,8 @@ class ActivationActivity : AppCompatActivity() {
         daysRemainingText.visibility = View.GONE
         retryButton.visibility = View.GONE
         continueButton.visibility = View.GONE
+        // Keep linkCodeSection visible if it was already showing
+        // Don't hide it during refresh
     }
     
     private fun showTrialStatus(daysRemaining: Int) {
@@ -336,7 +384,7 @@ class ActivationActivity : AppCompatActivity() {
                         )
                         
                         com.oxoplayer.tv.data.api.XtreamClient.initialize(credentials)
-                        com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials)
+                        com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials, preferencesManager.currentPlaylistId)
                         
                         // Load Xtream categories
                         initializeXtreamCategories()
@@ -361,7 +409,7 @@ class ActivationActivity : AppCompatActivity() {
                             android.util.Log.d("ActivationActivity", "Using Xtream API for M3U playlist")
                             
                             com.oxoplayer.tv.data.api.XtreamClient.initialize(credentials)
-                            com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials)
+                            com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials, preferencesManager.currentPlaylistId)
                             
                             initializeXtreamCategories()
                             
@@ -529,7 +577,7 @@ class ActivationActivity : AppCompatActivity() {
                 com.oxoplayer.tv.data.api.XtreamClient.initialize(credentials)
                 
                 // Store credentials in DataManager
-                com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials)
+                com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials, preferencesManager.currentPlaylistId)
                 
                 val xtreamRepo = com.oxoplayer.tv.data.repository.XtreamRepository()
                 
@@ -605,6 +653,105 @@ class ActivationActivity : AppCompatActivity() {
             android.util.Log.e("ActivationActivity", "Error initializing Xtream", e)
             // Continue without Xtream - will use M3U fallback
         }
+    }
+    
+    /**
+     * Generate a 4-character link code for easy activation
+     */
+    private fun generateLinkCode() {
+        android.util.Log.d("ActivationActivity", "generateLinkCode() called, hasValidLinkCode=$hasValidLinkCode")
+        
+        // Mark as generating to prevent duplicate calls
+        hasValidLinkCode = true
+        
+        // Make sure section is visible
+        linkCodeSection.visibility = View.VISIBLE
+        
+        // Reset display
+        linkCodeChar1.text = "-"
+        linkCodeChar2.text = "-"
+        linkCodeChar3.text = "-"
+        linkCodeChar4.text = "-"
+        linkCodeTimer.text = "Génération..."
+        generateNewCodeButton.visibility = View.GONE
+        linkCodeCountdownTimer?.cancel()
+        
+        lifecycleScope.launch {
+            try {
+                val result = deviceRepository.generateLinkCode()
+                
+                result.onSuccess { response ->
+                    android.util.Log.d("ActivationActivity", "Link code generated: ${response.code}")
+                    val code = response.code
+                    if (code.length >= 4) {
+                        linkCodeChar1.text = code[0].toString()
+                        linkCodeChar2.text = code[1].toString()
+                        linkCodeChar3.text = code[2].toString()
+                        linkCodeChar4.text = code[3].toString()
+                    }
+                    // Keep section visible
+                    linkCodeSection.visibility = View.VISIBLE
+                    
+                    // Parse expiration time and start countdown
+                    try {
+                        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
+                        dateFormat.timeZone = TimeZone.getTimeZone("UTC")
+                        val expiresAt = dateFormat.parse(response.expiresAt)
+                        
+                        if (expiresAt != null) {
+                            val remainingMs = expiresAt.time - System.currentTimeMillis()
+                            if (remainingMs > 0) {
+                                startLinkCodeCountdown(remainingMs)
+                            } else {
+                                linkCodeTimer.text = "Code expiré"
+                                generateNewCodeButton.visibility = View.VISIBLE
+                                hasValidLinkCode = false
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("ActivationActivity", "Error parsing expiration", e)
+                        // Default to 10 minutes
+                        startLinkCodeCountdown(10 * 60 * 1000L)
+                    }
+                }
+                
+                result.onFailure { error ->
+                    android.util.Log.e("ActivationActivity", "Error generating link code: ${error.message}")
+                    linkCodeTimer.text = "Erreur - Réessayer"
+                    generateNewCodeButton.visibility = View.VISIBLE
+                    hasValidLinkCode = false
+                    // Keep section visible even on error
+                    linkCodeSection.visibility = View.VISIBLE
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ActivationActivity", "Exception in generateLinkCode", e)
+                linkCodeTimer.text = "Erreur"
+                generateNewCodeButton.visibility = View.VISIBLE
+                hasValidLinkCode = false
+                linkCodeSection.visibility = View.VISIBLE
+            }
+        }
+    }
+    
+    /**
+     * Start countdown timer for link code expiration
+     */
+    private fun startLinkCodeCountdown(durationMs: Long) {
+        linkCodeCountdownTimer?.cancel()
+        
+        linkCodeCountdownTimer = object : CountDownTimer(durationMs, 1000) {
+            override fun onTick(millisUntilFinished: Long) {
+                val minutes = (millisUntilFinished / 1000) / 60
+                val seconds = (millisUntilFinished / 1000) % 60
+                linkCodeTimer.text = String.format("Expire dans %02d:%02d", minutes, seconds)
+            }
+            
+            override fun onFinish() {
+                linkCodeTimer.text = "Code expiré"
+                generateNewCodeButton.visibility = View.VISIBLE
+                hasValidLinkCode = false
+            }
+        }.start()
     }
 }
 

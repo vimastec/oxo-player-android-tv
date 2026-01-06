@@ -46,6 +46,19 @@ class Top10Adapter(
 
     override fun onBindViewHolder(holder: Top10ViewHolder, position: Int) {
         holder.bind(items[position])
+        
+        // Generate unique ID for this item if not set
+        if (holder.itemView.id == View.NO_ID) {
+            holder.itemView.id = View.generateViewId()
+        }
+        
+        // Block focus navigation at edges - stay on same item
+        if (position == 0) {
+            holder.itemView.nextFocusLeftId = holder.itemView.id
+        }
+        if (position == items.size - 1) {
+            holder.itemView.nextFocusRightId = holder.itemView.id
+        }
     }
 
     override fun getItemCount(): Int = items.size

@@ -115,6 +115,33 @@ class ProfileSelectionActivity : AppCompatActivity() {
         editProfilesButton.setOnClickListener {
             toggleEditMode()
         }
+        
+        // Focus listeners for buttons - change text color on focus
+        cancelButton.setOnFocusChangeListener { v, hasFocus ->
+            val button = v as Button
+            if (hasFocus) {
+                button.setTextColor(resources.getColor(android.R.color.black, theme))
+                button.scaleX = 1.1f
+                button.scaleY = 1.1f
+            } else {
+                button.setTextColor(resources.getColor(R.color.light_gray, theme))
+                button.scaleX = 1.0f
+                button.scaleY = 1.0f
+            }
+        }
+        
+        saveButton.setOnFocusChangeListener { v, hasFocus ->
+            val button = v as Button
+            if (hasFocus) {
+                button.scaleX = 1.1f
+                button.scaleY = 1.1f
+                button.elevation = 8f
+            } else {
+                button.scaleX = 1.0f
+                button.scaleY = 1.0f
+                button.elevation = 0f
+            }
+        }
     }
     
     private fun setupPinKeypad() {
@@ -251,8 +278,13 @@ class ProfileSelectionActivity : AppCompatActivity() {
     private fun setupAvatarSelection() {
         avatarSelectionContainer.removeAllViews()
         
+        val avatarViews = mutableListOf<ImageView>()
+        
         for ((index, avatarRes) in avatarResources.withIndex()) {
             val avatarView = ImageView(this).apply {
+                // Generate unique ID for navigation
+                id = View.generateViewId()
+                
                 layoutParams = LinearLayout.LayoutParams(80, 80).apply {
                     marginEnd = 12
                 }
@@ -270,27 +302,80 @@ class ProfileSelectionActivity : AppCompatActivity() {
                 
                 setOnClickListener {
                     selectAvatar(index)
+                    // Après sélection, passer au champ nom
+                    profileNameInput.requestFocus()
                 }
                 
-                // Make focusable for TV navigation with visible focus change
+                // Make focusable for TV navigation
                 isFocusable = true
+                isFocusableInTouchMode = true
                 isClickable = true
                 
                 // Focus change listener for TV remote navigation
                 setOnFocusChangeListener { v, hasFocus ->
                     if (hasFocus) {
-                        v.scaleX = 1.15f
-                        v.scaleY = 1.15f
-                        v.elevation = 8f
+                        v.scaleX = 1.2f
+                        v.scaleY = 1.2f
+                        v.elevation = 12f
+                        // Add white border on focus
+                        v.setBackgroundResource(R.drawable.avatar_selected_border)
                     } else {
                         v.scaleX = 1.0f
                         v.scaleY = 1.0f
                         v.elevation = 0f
+                        // Restore original border based on selection
+                        if (index == selectedAvatarIndex) {
+                            v.setBackgroundResource(R.drawable.avatar_selected_border)
+                        } else {
+                            v.setBackgroundResource(R.drawable.avatar_focus_border)
+                        }
+                    }
+                }
+                
+                // Key listener for D-pad navigation (force down to go to name input)
+                setOnKeyListener { _, keyCode, event ->
+                    if (event.action == KeyEvent.ACTION_DOWN) {
+                        when (keyCode) {
+                            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                profileNameInput.requestFocus()
+                                true
+                            }
+                            else -> false
+                        }
+                    } else {
+                        false
                     }
                 }
             }
+            avatarViews.add(avatarView)
             avatarSelectionContainer.addView(avatarView)
         }
+        
+        // Setup D-pad navigation between avatars
+        for ((index, avatarView) in avatarViews.withIndex()) {
+            // Left navigation - stay on first item or go to previous
+            if (index == 0) {
+                avatarView.nextFocusLeftId = avatarView.id
+            } else {
+                avatarView.nextFocusLeftId = avatarViews[index - 1].id
+            }
+            
+            // Right navigation - stay on last item or go to next
+            if (index == avatarViews.size - 1) {
+                avatarView.nextFocusRightId = avatarView.id
+            } else {
+                avatarView.nextFocusRightId = avatarViews[index + 1].id
+            }
+            
+            // Down navigation - go to profile name input
+            avatarView.nextFocusDownId = R.id.profileNameInput
+            
+            // Up navigation - stay on avatar
+            avatarView.nextFocusUpId = avatarView.id
+        }
+        
+        // Also set up keyboard handling for D-pad on avatars
+        profileNameInput.nextFocusUpId = avatarViews.firstOrNull()?.id ?: View.NO_ID
     }
     
     private fun selectAvatar(index: Int) {

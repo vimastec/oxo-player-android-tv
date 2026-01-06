@@ -446,6 +446,97 @@ router.post('/playlist/:mac/set-active/:playlistId', async (req, res) => {
   });
 });
 
+// ============= LINK CODE SYSTEM =============
+
+// Characters for link code (no O/0/I/1/L to avoid confusion)
+const LINK_CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const LINK_CODE_LENGTH = 4;
+const LINK_CODE_EXPIRY_MINUTES = 10;
+
+/**
+ * Generate a random link code
+ */
+function generateLinkCode() {
+  let code = '';
+  for (let i = 0; i < LINK_CODE_LENGTH; i++) {
+    code += LINK_CODE_CHARS.charAt(Math.floor(Math.random() * LINK_CODE_CHARS.length));
+  }
+  return code;
+}
+
+/**
+ * Clean up expired link codes
+ */
+async function cleanupExpiredLinkCodes() {
+  const now = new Date().toISOString();
+  await db.prepare('DELETE FROM link_codes WHERE expires_at < ?').run(now);
+}
+
+// Generate a link code for device (called by Android app)
+router.post('/link-code', async (req, res) => {
+  const { mac_address } = req.body;
+
+  if (!mac_address) {
+    return res.status(400).json({ error: 'Adresse MAC requise' });
+  }
+
+  // Normalize MAC address
+  const normalizedMac = mac_address.toUpperCase().replace(/[^A-F0-9]/g, '');
+  if (normalizedMac.length !== 12) {
+    return res.status(400).json({ error: 'Format d\'adresse MAC invalide' });
+  }
+
+  // Format as XX:XX:XX:XX:XX:XX
+  const formattedMac = normalizedMac.match(/.{2}/g).join(':');
+
+  try {
+    // Clean up expired codes first
+    await cleanupExpiredLinkCodes();
+
+    // Delete any existing codes for this MAC
+    await db.prepare('DELETE FROM link_codes WHERE mac_address = ?').run(formattedMac);
+
+    // Generate new unique code
+    let code;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (attempts < maxAttempts) {
+      code = generateLinkCode();
+      const existing = await db.prepare('SELECT id FROM link_codes WHERE code = ?').get(code);
+      if (!existing) break;
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      return res.status(500).json({ error: 'Impossible de générer un code unique' });
+    }
+
+    // Calculate expiration time (10 minutes from now)
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + LINK_CODE_EXPIRY_MINUTES);
+
+    // Insert new code
+    await db.prepare(`
+      INSERT INTO link_codes (code, mac_address, expires_at)
+      VALUES (?, ?, ?)
+    `).run(code, formattedMac, expiresAt.toISOString());
+
+    console.log(`🔗 Generated link code ${code} for MAC ${formattedMac} (expires: ${expiresAt.toISOString()})`);
+
+    res.json({
+      code,
+      mac_address: formattedMac,
+      expires_at: expiresAt.toISOString(),
+      expires_in_seconds: LINK_CODE_EXPIRY_MINUTES * 60
+    });
+
+  } catch (error) {
+    console.error('Error generating link code:', error);
+    res.status(500).json({ error: 'Erreur lors de la génération du code' });
+  }
+});
+
 // Check device status (quick check for app)
 router.get('/status/:mac', async (req, res) => {
   const { mac } = req.params;

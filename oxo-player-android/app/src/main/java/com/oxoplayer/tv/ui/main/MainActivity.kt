@@ -68,6 +68,17 @@ class MainActivity : FragmentActivity() {
             try {
                 android.util.Log.d("MainActivity", "Getting playlist info...")
                 
+                // Get all playlists to find the active one's ID
+                val allPlaylistsResult = deviceRepository.getAllPlaylists()
+                allPlaylistsResult.onSuccess { playlistsResponse ->
+                    val activePlaylist = playlistsResponse.playlists.find { it.isActive }
+                    if (activePlaylist != null) {
+                        preferencesManager.currentPlaylistId = activePlaylist.id
+                        preferencesManager.currentPlaylistName = activePlaylist.name
+                        android.util.Log.d("MainActivity", "Active playlist found: ${activePlaylist.name} (ID: ${activePlaylist.id})")
+                    }
+                }
+                
                 // First, get playlist info to check type
                 val playlistInfoResult = deviceRepository.getPlaylist()
                 
@@ -86,7 +97,7 @@ class MainActivity : FragmentActivity() {
                         )
                         
                         com.oxoplayer.tv.data.api.XtreamClient.initialize(credentials)
-                        com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials)
+                        com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials, preferencesManager.currentPlaylistId)
                         
                         // Load Xtream categories
                         initializeXtreamCategories()
@@ -268,7 +279,7 @@ class MainActivity : FragmentActivity() {
                 com.oxoplayer.tv.data.api.XtreamClient.initialize(credentials)
                 
                 // Store credentials in DataManager
-                com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials)
+                com.oxoplayer.tv.data.DataManager.initXtreamCredentials(credentials, preferencesManager.currentPlaylistId)
                 
                 val xtreamRepo = com.oxoplayer.tv.data.repository.XtreamRepository()
                 

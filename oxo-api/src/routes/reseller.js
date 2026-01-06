@@ -1061,6 +1061,45 @@ router.get('/subresellers/:id/transactions', async (req, res) => {
   res.json(transactions);
 });
 
+// Get MAC address from Link Code
+router.get('/link-code/:code', verifyToken, isReseller, async (req, res) => {
+  const { code } = req.params;
+
+  if (!code || code.length !== 4) {
+    return res.status(400).json({ error: 'Code invalide' });
+  }
+
+  try {
+    // PostgreSQL uses boolean, SQLite uses integer
+    const usedCondition = usePostgres ? 'used = false' : 'used = 0';
+    const linkCodeEntry = await db.prepare(`SELECT * FROM link_codes WHERE code = ? AND ${usedCondition}`).get(code.toUpperCase());
+
+    if (!linkCodeEntry) {
+      return res.status(404).json({ error: 'Code non trouvé ou déjà utilisé' });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(linkCodeEntry.expires_at);
+
+    if (now > expiresAt) {
+      // Mark as expired
+      const usedValue = usePostgres ? 'true' : '1';
+      await db.prepare(`UPDATE link_codes SET used = ${usedValue} WHERE id = ?`).run(linkCodeEntry.id);
+      return res.status(400).json({ error: 'Code expiré' });
+    }
+
+    // Mark code as used after successful retrieval
+    const usedValue = usePostgres ? 'true' : '1';
+    await db.prepare(`UPDATE link_codes SET used = ${usedValue} WHERE id = ?`).run(linkCodeEntry.id);
+
+    console.log(`🔗 Link code ${code} used - MAC: ${linkCodeEntry.mac_address}`);
+    res.json({ mac_address: linkCodeEntry.mac_address });
+  } catch (error) {
+    console.error('Error checking link code:', error);
+    res.status(500).json({ error: 'Erreur lors de la vérification du code' });
+  }
+});
+
 module.exports = router;
 
 

@@ -22,6 +22,9 @@ object MyListManager {
     // Current profile ID (null = default/legacy)
     private var currentProfileId: String? = null
     
+    // Current playlist ID (to separate MyList per playlist)
+    private var currentPlaylistId: Int? = null
+    
     // In-memory cache
     private var myListCache: MutableList<MyListItem> = mutableListOf()
     
@@ -59,7 +62,19 @@ object MyListManager {
         if (currentProfileId != profileId) {
             currentProfileId = profileId
             loadFromPrefs()
-            android.util.Log.d("MyListManager", "Switched to profile: $profileId")
+            android.util.Log.d("MyListManager", "Switched to profile: $profileId, playlist: $currentPlaylistId")
+        }
+    }
+    
+    /**
+     * Set current playlist - reloads data for this playlist
+     * MyList is now tied to both profile AND playlist
+     */
+    fun setCurrentPlaylist(playlistId: Int?) {
+        if (currentPlaylistId != playlistId) {
+            currentPlaylistId = playlistId
+            loadFromPrefs()
+            android.util.Log.d("MyListManager", "Switched to playlist: $playlistId, profile: $currentProfileId")
         }
     }
     
@@ -67,6 +82,11 @@ object MyListManager {
      * Get the current profile ID
      */
     fun getCurrentProfileId(): String? = currentProfileId
+    
+    /**
+     * Get the current playlist ID
+     */
+    fun getCurrentPlaylistId(): Int? = currentPlaylistId
     
     /**
      * Clear all items for a specific profile (used when deleting profile)
@@ -83,14 +103,13 @@ object MyListManager {
     }
     
     /**
-     * Generate profile-specific key
+     * Generate profile and playlist-specific key
+     * Format: {profileId}_{playlistId}_{baseKey} or {profileId}_{baseKey} or {baseKey}
      */
     private fun getProfileKey(baseKey: String, profileId: String? = currentProfileId): String {
-        return if (profileId != null) {
-            "${profileId}_$baseKey"
-        } else {
-            baseKey
-        }
+        val playlistPart = currentPlaylistId?.let { "playlist${it}_" } ?: ""
+        val profilePart = profileId?.let { "${it}_" } ?: ""
+        return "$profilePart$playlistPart$baseKey"
     }
     
     /**

@@ -107,6 +107,9 @@ export const resellerApi = {
   // Get current reseller info (including permissions)
   getMe: () => api.get('/reseller/me'),
   
+  // Link Code - Get MAC address from link code
+  checkLinkCode: (code: string) => api.get(`/reseller/link-code/${code}`),
+  
   // Devices
   getDevices: () => api.get('/reseller/devices'),
   activateDevice: (mac_address: string, force_extend = false) =>

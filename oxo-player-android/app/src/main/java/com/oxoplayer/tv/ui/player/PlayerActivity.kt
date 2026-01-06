@@ -61,11 +61,19 @@ class PlayerActivity : AppCompatActivity() {
     private var subtitleButton: ImageButton? = null
     private var infoButton: ImageButton? = null
     
-    // Netflix-style bottom row
+    // Netflix-style bottom row (legacy)
     private var seriesOptionsRow: View? = null
     private var btnInfoContainer: LinearLayout? = null
     private var btnEpisodesContainer: LinearLayout? = null
     private var btnAudioSubtitlesContainer: LinearLayout? = null
+    
+    // Netflix-style new controls
+    private var playerTitle: TextView? = null
+    private var btnVolume: ImageButton? = null
+    private var btnNextEpisode: ImageButton? = null
+    private var btnEpisodes: ImageButton? = null
+    private var btnSubtitles: ImageButton? = null
+    private var btnAudio: ImageButton? = null
     
     // Series data for Episodes feature
     private var seriesName: String? = null
@@ -274,10 +282,16 @@ class PlayerActivity : AppCompatActivity() {
         // Find controls inside the PlayerView's controller (custom_player_controls.xml)
         // These will be available after the controller is inflated
         playerView.post {
-            volumeSeekBar = playerView.findViewById(R.id.volume_seekbar)
-            volumeText = playerView.findViewById(R.id.volume_text)
+            // Netflix-style controls
+            playerTitle = playerView.findViewById(R.id.player_title)
+            btnVolume = playerView.findViewById(R.id.btn_volume)
+            btnNextEpisode = playerView.findViewById(R.id.btn_next_episode)
+            btnEpisodes = playerView.findViewById(R.id.btn_episodes)
+            btnSubtitles = playerView.findViewById(R.id.btn_subtitles)
+            btnAudio = playerView.findViewById(R.id.btn_audio)
             
             setupBottomControls()
+            setupNetflixControls()
         }
     }
     
@@ -286,109 +300,273 @@ class PlayerActivity : AppCompatActivity() {
      * Called after PlayerView controller is inflated
      */
     private fun setupBottomControls() {
-        // Setup volume seekbar
-        volumeSeekBar?.max = maxVolume
-        volumeSeekBar?.progress = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        updateVolumeText()
-        
-        volumeSeekBar?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, progress, 0)
-                    updateVolumeText()
+        // Legacy volume seekbar (may be null with new layout)
+        volumeSeekBar?.let { seekBar ->
+            seekBar.max = maxVolume
+            seekBar.progress = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            updateVolumeText()
+            
+            seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (fromUser) {
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, progress, 0)
+                        updateVolumeText()
+                    }
                 }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-        
-        // Netflix-style bottom row (for movies and series)
-        seriesOptionsRow = playerView.findViewById(R.id.series_options_row)
-        btnInfoContainer = playerView.findViewById(R.id.btn_info_container)
-        btnEpisodesContainer = playerView.findViewById(R.id.btn_episodes_container)
-        btnAudioSubtitlesContainer = playerView.findViewById(R.id.btn_audio_subtitles_container)
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
         
         android.util.Log.d("PlayerActivity", "setupBottomControls - type: $type, seasons: ${seasons.size}")
-        
-        // Show bottom options row for movies and series
-        if (type == "MOVIE" || type == "SERIES") {
-            seriesOptionsRow?.visibility = View.VISIBLE
-            
-            // Show Episodes button only for series with seasons data
-            if (type == "SERIES" && seasons.isNotEmpty()) {
-                btnEpisodesContainer?.visibility = View.VISIBLE
-                android.util.Log.d("PlayerActivity", "Episodes button VISIBLE - ${seasons.size} seasons available")
-            } else {
-                android.util.Log.d("PlayerActivity", "Episodes button HIDDEN - seasons empty or not series")
-            }
-        }
-        
-        // Setup click listeners
-        btnInfoContainer?.setOnClickListener {
-            showStreamInfo()
-        }
-        
-        btnEpisodesContainer?.setOnClickListener {
-            showEpisodesSelector()
-        }
-        
-        btnAudioSubtitlesContainer?.setOnClickListener {
-            showAudioSubtitlesDialog()
-        }
-        
-        // Setup D-pad navigation between bottom buttons
-        setupBottomButtonsNavigation()
     }
     
     /**
      * Setup D-pad navigation for bottom row buttons
      */
-    private fun setupBottomButtonsNavigation() {
-        val info = btnInfoContainer
-        val episodes = btnEpisodesContainer
-        val audioSub = btnAudioSubtitlesContainer
+    /**
+     * Setup Netflix-style controls (new layout)
+     */
+    private fun setupNetflixControls() {
+        // Update title based on content type
+        updatePlayerTitle()
         
-        if (info == null || audioSub == null) return
-        
-        // Check if episodes button is visible
-        val episodesVisible = episodes?.visibility == View.VISIBLE
-        
-        // Create list of visible buttons for navigation
-        val buttons = mutableListOf<View>()
-        buttons.add(info)
-        if (episodesVisible && episodes != null) {
-            buttons.add(episodes)
+        // Hide controls not needed for Live TV
+        if (type == "LIVE") {
+            setupLiveTVControls()
         }
-        buttons.add(audioSub)
         
-        // Setup key listeners for each button to handle D-pad navigation manually
-        for ((index, button) in buttons.withIndex()) {
-            button.setOnKeyListener { v, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN) {
-                    when (keyCode) {
-                        KeyEvent.KEYCODE_DPAD_LEFT -> {
-                            if (index > 0) {
-                                buttons[index - 1].requestFocus()
-                                return@setOnKeyListener true
-                            }
-                        }
-                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                            if (index < buttons.size - 1) {
-                                buttons[index + 1].requestFocus()
-                                return@setOnKeyListener true
-                            }
-                        }
-                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                            v.performClick()
-                            return@setOnKeyListener true
-                        }
-                    }
-                }
-                false
+        // Rewind -10s button (manual listener since custom layout)
+        playerView.findViewById<ImageButton>(R.id.exo_rew)?.setOnClickListener {
+            player?.let { p ->
+                val newPosition = (p.currentPosition - 10000).coerceAtLeast(0)
+                p.seekTo(newPosition)
+                android.util.Log.d("PlayerActivity", "Rewind -10s to ${newPosition}ms")
             }
         }
         
-        android.util.Log.d("PlayerActivity", "Bottom navigation setup complete, buttons: ${buttons.size}, episodesVisible: $episodesVisible")
+        // Forward +10s button (manual listener since custom layout)
+        playerView.findViewById<ImageButton>(R.id.exo_ffwd)?.setOnClickListener {
+            player?.let { p ->
+                val newPosition = (p.currentPosition + 10000).coerceAtMost(p.duration)
+                p.seekTo(newPosition)
+                android.util.Log.d("PlayerActivity", "Forward +10s to ${newPosition}ms")
+            }
+        }
+        
+        // Volume button
+        btnVolume?.setOnClickListener {
+            showVolumeDialog()
+        }
+        
+        // Next episode button (only for series)
+        btnNextEpisode?.setOnClickListener {
+            playNextEpisode()
+        }
+        
+        // Episodes button
+        btnEpisodes?.setOnClickListener {
+            showEpisodesSelector()
+        }
+        
+        // Subtitles button
+        btnSubtitles?.setOnClickListener {
+            showSubtitleTrackSelector()
+        }
+        
+        // Audio button
+        btnAudio?.setOnClickListener {
+            showAudioTrackSelector()
+        }
+        
+        // Show/hide series-specific buttons
+        if (type == "SERIES" && seasons.isNotEmpty()) {
+            btnNextEpisode?.visibility = View.VISIBLE
+            btnEpisodes?.visibility = View.VISIBLE
+        } else {
+            btnNextEpisode?.visibility = View.GONE
+            btnEpisodes?.visibility = View.GONE
+        }
+        
+        // Setup focus animations for all Netflix buttons
+        setupNetflixButtonFocus()
+    }
+    
+    /**
+     * Setup controls for Live TV (hide seek, progress, audio/subtitle controls)
+     */
+    private fun setupLiveTVControls() {
+        // Hide progress bar and time
+        playerView.findViewById<View>(R.id.exo_progress)?.visibility = View.GONE
+        playerView.findViewById<View>(R.id.exo_position)?.visibility = View.GONE
+        playerView.findViewById<View>(R.id.exo_duration)?.visibility = View.GONE
+        
+        // Hide rewind/forward buttons
+        playerView.findViewById<View>(R.id.exo_rew)?.visibility = View.GONE
+        playerView.findViewById<View>(R.id.exo_ffwd)?.visibility = View.GONE
+        
+        // Hide audio/subtitle buttons (Live TV typically doesn't have selectable tracks)
+        btnAudio?.visibility = View.GONE
+        btnSubtitles?.visibility = View.GONE
+        
+        // Hide next episode button
+        btnNextEpisode?.visibility = View.GONE
+        btnEpisodes?.visibility = View.GONE
+        
+        // IMPORTANT: Configure auto-hide for Live TV controls
+        playerView.controllerShowTimeoutMs = 3000 // Hide after 3 seconds for Live TV
+        playerView.controllerAutoShow = false // Don't auto-show on play state changes
+        
+        // Hide controller initially for Live TV
+        playerView.hideController()
+        
+        android.util.Log.d("PlayerActivity", "Live TV controls configured - hiding seek/progress controls")
+    }
+    
+    /**
+     * Update player title based on content type
+     */
+    private fun updatePlayerTitle() {
+        playerTitle?.text = when (type) {
+            "SERIES" -> {
+                val episodeTitle = intent.getStringExtra("EPISODE_TITLE") ?: ""
+                val episodeNum = intent.getIntExtra("EPISODE_NUM", 0)
+                val seasonNum = currentSeasonNumber
+                if (episodeNum > 0) {
+                    "$seriesName S${seasonNum}E${episodeNum} $episodeTitle".trim()
+                } else {
+                    seriesName ?: title ?: ""
+                }
+            }
+            "MOVIE" -> title ?: ""
+            else -> title ?: ""
+        }
+    }
+    
+    /**
+     * Show volume adjustment dialog
+     */
+    private fun showVolumeDialog() {
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val volumePercent = (currentVolume * 100 / maxVolume)
+        
+        val options = listOf(
+            "🔊 Volume: $volumePercent%",
+            "🔇 Muet",
+            "🔈 25%",
+            "🔉 50%",
+            "🔊 75%",
+            "🔊 100%"
+        )
+        
+        showTVFriendlyDialog("Volume", options, -1) { which ->
+            val newVolume = when (which) {
+                1 -> 0
+                2 -> maxVolume / 4
+                3 -> maxVolume / 2
+                4 -> (maxVolume * 3) / 4
+                5 -> maxVolume
+                else -> currentVolume
+            }
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+            Toast.makeText(this, "Volume: ${newVolume * 100 / maxVolume}%", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * Setup focus animations for Netflix-style buttons
+     */
+    private fun setupNetflixButtonFocus() {
+        val buttons = listOfNotNull(
+            playerView.findViewById<View>(R.id.exo_play_pause),
+            playerView.findViewById<View>(R.id.exo_rew),
+            playerView.findViewById<View>(R.id.exo_ffwd),
+            btnVolume, btnNextEpisode, btnEpisodes, btnSubtitles, btnAudio
+        )
+        
+        buttons.forEach { button ->
+            button.setOnFocusChangeListener { v, hasFocus ->
+                val scale = if (hasFocus) 1.3f else 1.0f
+                val alpha = if (hasFocus) 1.0f else 0.7f
+                v.animate()
+                    .scaleX(scale)
+                    .scaleY(scale)
+                    .alpha(alpha)
+                    .setDuration(150)
+                    .start()
+            }
+        }
+    }
+    
+    /**
+     * Play next episode if available
+     */
+    private fun playNextEpisode() {
+        if (type != "SERIES" || seasons.isEmpty()) {
+            Toast.makeText(this, "Pas d'épisode suivant", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Find current episode and play next
+        val currentEpNum = intent.getIntExtra("EPISODE_NUM", 0)
+        val currentSeason = seasons.getOrNull(currentSeasonNumber - 1)
+        
+        if (currentSeason != null) {
+            // Find the next episode in current season
+            val sortedEpisodes = currentSeason.episodes.sortedBy { it.episodeNumber }
+            val nextEpisode = sortedEpisodes.find { it.episodeNumber > currentEpNum }
+            
+            if (nextEpisode != null) {
+                // Update current episode info
+                title = nextEpisode.name
+                streamUrl = nextEpisode.streamUrl
+                
+                // Update intent extras for future reference
+                intent.putExtra("EPISODE_NUM", nextEpisode.episodeNumber)
+                intent.putExtra("EPISODE_TITLE", nextEpisode.name)
+                
+                // Update player title
+                updatePlayerTitle()
+                
+                // Reset resume position
+                resumePosition = 0
+                
+                // Load the new episode
+                loadNewEpisode(nextEpisode.streamUrl)
+                
+                android.util.Log.d("PlayerActivity", "Playing next episode: ${nextEpisode.name} (E${nextEpisode.episodeNumber})")
+            } else {
+                // Check if there's a next season
+                val nextSeasonIndex = currentSeasonNumber
+                if (nextSeasonIndex < seasons.size) {
+                    val nextSeason = seasons[nextSeasonIndex]
+                    val firstEpisodeNextSeason = nextSeason.episodes.minByOrNull { it.episodeNumber }
+                    
+                    if (firstEpisodeNextSeason != null) {
+                        // Move to next season
+                        currentSeasonNumber = nextSeasonIndex + 1
+                        
+                        title = firstEpisodeNextSeason.name
+                        streamUrl = firstEpisodeNextSeason.streamUrl
+                        
+                        intent.putExtra("EPISODE_NUM", firstEpisodeNextSeason.episodeNumber)
+                        intent.putExtra("EPISODE_TITLE", firstEpisodeNextSeason.name)
+                        
+                        updatePlayerTitle()
+                        resumePosition = 0
+                        
+                        loadNewEpisode(firstEpisodeNextSeason.streamUrl)
+                        
+                        Toast.makeText(this, "Saison ${currentSeasonNumber}", Toast.LENGTH_SHORT).show()
+                        android.util.Log.d("PlayerActivity", "Moving to next season: S${currentSeasonNumber}E${firstEpisodeNextSeason.episodeNumber}")
+                    } else {
+                        Toast.makeText(this, "Fin de la série", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(this, "Dernier épisode de la série", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
     
     /**
@@ -1761,6 +1939,11 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
+        // Get series ID (can be String or Int)
+        val seriesIdValue = if (videoType == "SERIES") {
+            intent.getStringExtra("SERIES_ID") ?: intent.getIntExtra("SERIES_ID", 0).takeIf { it > 0 }?.toString()
+        } else null
+        
         // Save progress with cover image and series metadata (if applicable)
         WatchProgressManager.saveProgress(
             url = url,
@@ -1769,14 +1952,14 @@ class PlayerActivity : AppCompatActivity() {
             durationMs = duration,
             type = videoType,
             cover = cover, // Pass the cover image URL
-            seriesId = if (videoType == "SERIES") intent.getStringExtra("SERIES_ID") else null,
+            seriesId = seriesIdValue,
             seriesName = if (videoType == "SERIES") seriesName else null,
             seasonNumber = if (videoType == "SERIES") currentSeasonNumber else null,
             episodeId = if (videoType == "SERIES") currentEpisodeId else null,
             seasonsJson = if (videoType == "SERIES") intent.getStringExtra("SEASONS_JSON") else null
         )
         
-        android.util.Log.d("PlayerActivity", "Saved progress for '$videoTitle': ${WatchProgressManager.formatTime(currentPosition)} (cover: $cover, seriesId: ${if (videoType == "SERIES") intent.getStringExtra("SERIES_ID") else "N/A"})")
+        android.util.Log.d("PlayerActivity", "Saved progress for '$videoTitle': ${WatchProgressManager.formatTime(currentPosition)} (cover: $cover, seriesId: $seriesIdValue)")
     }
     
     private fun releasePlayer() {
@@ -1851,11 +2034,23 @@ class PlayerActivity : AppCompatActivity() {
                 finish()
                 true
             }
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_DPAD_CENTER -> {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 player?.let {
                     if (it.isPlaying) it.pause() else it.play()
                 }
                 true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER -> {
+                // If controls visible, let the focused button handle it
+                if (playerView.isControllerFullyVisible) {
+                    false // Let the system handle focus click
+                } else {
+                    player?.let {
+                        if (it.isPlaying) it.pause() else it.play()
+                    }
+                    playerView.showController()
+                    true
+                }
             }
             KeyEvent.KEYCODE_MEDIA_PLAY -> {
                 player?.play()
@@ -1874,14 +2069,43 @@ class PlayerActivity : AppCompatActivity() {
                 true
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                seekByAmount(-10000) // Seek back 10 seconds
-                playerView.showController()
-                true
+                if (playerView.isControllerFullyVisible) {
+                    // Navigate focus to left button
+                    moveFocusLeft()
+                    true
+                } else if (type != "LIVE_TV") {
+                    // Seek back 10 seconds (not for Live TV)
+                    seekByAmount(-10000)
+                    playerView.showController()
+                    true
+                } else {
+                    // For Live TV, just show controller
+                    playerView.showController()
+                    true
+                }
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                seekByAmount(10000) // Seek forward 10 seconds
-                playerView.showController()
-                true
+                if (playerView.isControllerFullyVisible) {
+                    // Navigate focus to right button
+                    moveFocusRight()
+                    true
+                } else if (type != "LIVE_TV") {
+                    // Seek forward 10 seconds (not for Live TV)
+                    seekByAmount(10000)
+                    playerView.showController()
+                    true
+                } else {
+                    // For Live TV, just show controller
+                    playerView.showController()
+                    true
+                }
+            }
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                // Let default behavior handle navigation to seek bar
+                if (!playerView.isControllerFullyVisible) {
+                    playerView.showController()
+                }
+                false // Let system handle focus navigation
             }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> {
                 showStreamInfo()
@@ -1900,4 +2124,58 @@ class PlayerActivity : AppCompatActivity() {
             else -> super.onKeyDown(keyCode, event)
         }
     }
+    
+    /**
+     * Move focus to the left button in player controls
+     */
+    private fun moveFocusLeft() {
+        val buttons = getVisiblePlayerButtons()
+        val currentFocus = currentFocus
+        val currentIndex = buttons.indexOfFirst { it == currentFocus }
+        
+        if (currentIndex > 0) {
+            buttons[currentIndex - 1].requestFocus()
+        } else if (currentIndex == -1 && buttons.isNotEmpty()) {
+            // No button focused, focus the first one
+            buttons.first().requestFocus()
+        }
+    }
+    
+    /**
+     * Move focus to the right button in player controls
+     */
+    private fun moveFocusRight() {
+        val buttons = getVisiblePlayerButtons()
+        val currentFocus = currentFocus
+        val currentIndex = buttons.indexOfFirst { it == currentFocus }
+        
+        if (currentIndex >= 0 && currentIndex < buttons.size - 1) {
+            buttons[currentIndex + 1].requestFocus()
+        } else if (currentIndex == -1 && buttons.isNotEmpty()) {
+            // No button focused, focus the first one
+            buttons.first().requestFocus()
+        }
+    }
+    
+    /**
+     * Get list of visible player control buttons in order
+     */
+    private fun getVisiblePlayerButtons(): List<View> {
+        val buttons = mutableListOf<View>()
+        
+        // Left side buttons
+        playerView.findViewById<View>(R.id.exo_play_pause)?.let { buttons.add(it) }
+        playerView.findViewById<View>(R.id.exo_rew)?.let { buttons.add(it) }
+        playerView.findViewById<View>(R.id.exo_ffwd)?.let { buttons.add(it) }
+        btnVolume?.let { buttons.add(it) }
+        
+        // Right side buttons (only if visible)
+        btnNextEpisode?.takeIf { it.visibility == View.VISIBLE }?.let { buttons.add(it) }
+        btnEpisodes?.takeIf { it.visibility == View.VISIBLE }?.let { buttons.add(it) }
+        btnSubtitles?.let { buttons.add(it) }
+        btnAudio?.let { buttons.add(it) }
+        
+        return buttons
+    }
 }
+

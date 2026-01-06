@@ -5,9 +5,12 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.ProgressBar
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -43,8 +46,13 @@ class MoviesActivity : AppCompatActivity() {
     private lateinit var searchEditText: EditText
     private lateinit var clearSearchButton: ImageView
     private lateinit var noResultsText: TextView
+    private lateinit var yearFilterSpinner: Spinner
     
     private val xtreamRepository = XtreamRepository()
+    
+    // Year filter
+    private var selectedYear: String? = null
+    private var availableYears = mutableListOf<String>()
     
     // Xtream mode data
     private var xtreamCategories = listOf<XtreamMovieCategory>()
@@ -81,8 +89,10 @@ class MoviesActivity : AppCompatActivity() {
         searchEditText = findViewById(R.id.searchEditText)
         clearSearchButton = findViewById(R.id.clearSearchButton)
         noResultsText = findViewById(R.id.noResultsText)
+        yearFilterSpinner = findViewById(R.id.yearFilterSpinner)
         
         setupSearch()
+        setupYearFilter()
     }
     
     private fun setupSearch() {
@@ -101,6 +111,88 @@ class MoviesActivity : AppCompatActivity() {
         }
     }
     
+    private fun setupYearFilter() {
+        // Initialize with default value
+        availableYears.add("📅 Toutes les années")
+        val initialAdapter = ArrayAdapter(
+            this,
+            R.layout.spinner_year_item,
+            availableYears
+        )
+        initialAdapter.setDropDownViewResource(R.layout.spinner_year_dropdown)
+        yearFilterSpinner.adapter = initialAdapter
+        
+        yearFilterSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selected = availableYears.getOrNull(position)
+                selectedYear = if (selected?.contains("Toutes") == true) null else selected
+                filterMovies(searchEditText.text.toString().trim())
+            }
+            
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedYear = null
+            }
+        }
+    }
+    
+    private fun updateYearFilter(movies: List<XtreamMovie>) {
+        // Extract years from movie titles
+        val years = movies.mapNotNull { extractYearFromTitle(it.name) }
+            .distinct()
+            .sortedDescending()
+        
+        availableYears.clear()
+        availableYears.add("📅 Toutes les années")
+        availableYears.addAll(years)
+        
+        runOnUiThread {
+            val adapter = ArrayAdapter(
+                this,
+                R.layout.spinner_year_item,
+                availableYears
+            )
+            adapter.setDropDownViewResource(R.layout.spinner_year_dropdown)
+            yearFilterSpinner.adapter = adapter
+            
+            android.util.Log.d(TAG, "Year filter updated with ${years.size} years")
+        }
+    }
+    
+    private fun extractYearFromTitle(title: String): String? {
+        // Try multiple year patterns:
+        // 1. "(2024)" - standard format
+        // 2. "2024" at end of title
+        // 3. "[2024]" - bracket format
+        // 4. "- 2024" - dash format
+        
+        // Pattern 1: (YYYY)
+        val pattern1 = Regex("\\((19|20)\\d{2}\\)")
+        pattern1.find(title)?.let {
+            return it.value.replace("(", "").replace(")", "")
+        }
+        
+        // Pattern 2: [YYYY]
+        val pattern2 = Regex("\\[(19|20)\\d{2}\\]")
+        pattern2.find(title)?.let {
+            return it.value.replace("[", "").replace("]", "")
+        }
+        
+        // Pattern 3: YYYY at the end (with space before)
+        val pattern3 = Regex("\\s(19|20)\\d{2}$")
+        pattern3.find(title)?.let {
+            return it.value.trim()
+        }
+        
+        // Pattern 4: - YYYY or . YYYY
+        val pattern4 = Regex("[-.\\s](19|20)\\d{2}(?:[^0-9]|$)")
+        pattern4.find(title)?.let {
+            val year = Regex("(19|20)\\d{2}").find(it.value)
+            return year?.value
+        }
+        
+        return null
+    }
+    
     private fun filterMovies(query: String) {
         isSearchActive = query.isNotEmpty()
         
@@ -112,7 +204,7 @@ class MoviesActivity : AppCompatActivity() {
     }
     
     private fun filterXtreamMovies(query: String) {
-        val filteredMovies = if (query.isEmpty()) {
+        var filteredMovies = if (query.isEmpty()) {
             // When search is cleared, show current category
             currentXtreamMovies
         } else {
@@ -122,7 +214,15 @@ class MoviesActivity : AppCompatActivity() {
             }
         }
         
-        noResultsText.visibility = if (filteredMovies.isEmpty() && query.isNotEmpty()) View.VISIBLE else View.GONE
+        // Apply year filter
+        if (selectedYear != null) {
+            filteredMovies = filteredMovies.filter { movie ->
+                val movieYear = extractYearFromTitle(movie.name)
+                movieYear == selectedYear
+            }
+        }
+        
+        noResultsText.visibility = if (filteredMovies.isEmpty() && (query.isNotEmpty() || selectedYear != null)) View.VISIBLE else View.GONE
         
         val adapter = XtreamMovieAdapter(filteredMovies) { movie ->
             onXtreamMovieSelected(movie)
@@ -251,6 +351,9 @@ class MoviesActivity : AppCompatActivity() {
                 }
             }
             
+            // Update year filter with all available years
+            updateYearFilter(allXtreamMovies)
+            
             android.util.Log.d(TAG, "Loaded ${allXtreamMovies.size} total movies for global search")
         }
     }
@@ -305,12 +408,46 @@ class MoviesActivity : AppCompatActivity() {
     private fun displayXtreamMovies() {
         showLoading(false)
         
+        // Update year filter with current category movies
+        updateYearFilterFromCurrentMovies()
+        
         val adapter = XtreamMovieAdapter(currentXtreamMovies) { movie ->
             onXtreamMovieSelected(movie)
         }
         moviesRecyclerView.adapter = adapter
         
         android.util.Log.d(TAG, "Displaying ${currentXtreamMovies.size} movies for $currentCategoryName")
+    }
+    
+    private fun updateYearFilterFromCurrentMovies() {
+        // Debug: show first 3 movie titles
+        android.util.Log.d(TAG, "Sample movies: ${currentXtreamMovies.take(3).map { it.name }}")
+        
+        // Extract years from current category movies
+        val years = currentXtreamMovies.mapNotNull { extractYearFromTitle(it.name) }
+            .distinct()
+            .sortedDescending()
+        
+        android.util.Log.d(TAG, "Extracted ${years.size} unique years from ${currentXtreamMovies.size} movies")
+        
+        if (years.isEmpty()) {
+            android.util.Log.d(TAG, "No years found in movie titles!")
+            return
+        }
+        
+        availableYears.clear()
+        availableYears.add("📅 Toutes les années")
+        availableYears.addAll(years)
+        
+        val adapter = ArrayAdapter(
+            this,
+            R.layout.spinner_year_item,
+            availableYears
+        )
+        adapter.setDropDownViewResource(R.layout.spinner_year_dropdown)
+        yearFilterSpinner.adapter = adapter
+        
+        android.util.Log.d(TAG, "Year filter updated with ${years.size} years: ${years.take(5)}")
     }
     
     private fun onXtreamMovieSelected(movie: XtreamMovie) {

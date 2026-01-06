@@ -100,13 +100,16 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:scrollbars="none"
-                    android:layout_marginBottom="24dp">
+                    android:layout_marginBottom="24dp"
+                    android:focusable="false"
+                    android:descendantFocusability="afterDescendants">
 
                     <LinearLayout
                         android:id="@+id/avatarSelectionContainer"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal" />
+                        android:orientation="horizontal"
+                        android:focusable="false" />
 
                 </HorizontalScrollView>
 
@@ -122,7 +125,10 @@
                     android:paddingHorizontal="16dp"
                     android:inputType="textPersonName"
                     android:maxLength="20"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="16dp"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:nextFocusDown="@id/kidsProfileCheckbox" />
 
                 <!-- Kids Profile Checkbox -->
                 <CheckBox
@@ -132,7 +138,10 @@
                     android:text="Profil enfant"
                     android:textColor="@color/light_gray"
                     android:buttonTint="@color/primary"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="16dp"
+                    android:focusable="true"
+                    android:nextFocusUp="@id/profileNameInput"
+                    android:nextFocusDown="@id/pinEnabledCheckbox" />
 
                 <!-- PIN Code Section -->
                 <LinearLayout
@@ -148,7 +157,11 @@
                         android:layout_height="wrap_content"
                         android:text="Code PIN"
                         android:textColor="@color/light_gray"
-                        android:buttonTint="@color/primary" />
+                        android:buttonTint="@color/primary"
+                        android:focusable="true"
+                        android:nextFocusUp="@id/kidsProfileCheckbox"
+                        android:nextFocusDown="@id/cancelButton"
+                        android:nextFocusRight="@id/pinCodeInput" />
 
                     <EditText
                         android:id="@+id/pinCodeInput"
@@ -180,8 +193,14 @@
                         android:layout_height="48dp"
                         android:text="Annuler"
                         android:textColor="@color/light_gray"
-                        android:background="@android:color/transparent"
-                        android:layout_marginEnd="16dp" />
+                        android:background="@drawable/button_focus_background"
+                        android:paddingHorizontal="24dp"
+                        android:layout_marginEnd="16dp"
+                        android:focusable="true"
+                        android:nextFocusUp="@id/pinEnabledCheckbox"
+                        android:nextFocusRight="@id/saveButton"
+                        android:nextFocusLeft="@id/cancelButton"
+                        android:nextFocusDown="@id/cancelButton" />
 
                     <Button
                         android:id="@+id/saveButton"
@@ -190,7 +209,12 @@
                         android:text="Enregistrer"
                         android:textColor="@android:color/white"
                         android:backgroundTint="@color/primary"
-                        android:paddingHorizontal="24dp" />
+                        android:paddingHorizontal="24dp"
+                        android:focusable="true"
+                        android:nextFocusUp="@id/pinEnabledCheckbox"
+                        android:nextFocusLeft="@id/cancelButton"
+                        android:nextFocusRight="@id/saveButton"
+                        android:nextFocusDown="@id/saveButton" />
 
                 </LinearLayout>
 

@@ -162,6 +162,111 @@
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
 
+        <!-- Link Code Section - For Reseller -->
+        <LinearLayout
+            android:id="@+id/linkCodeSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="#FF5722"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CODE REVENDEUR"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <!-- 4 Character Code Display -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <TextView
+                    android:id="@+id/linkCodeChar1"
+                    android:layout_width="44dp"
+                    android:layout_height="52dp"
+                    android:background="@android:color/white"
+                    android:gravity="center"
+                    android:text="-"
+                    android:textColor="#FF5722"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:layout_marginEnd="6dp" />
+
+                <TextView
+                    android:id="@+id/linkCodeChar2"
+                    android:layout_width="44dp"
+                    android:layout_height="52dp"
+                    android:background="@android:color/white"
+                    android:gravity="center"
+                    android:text="-"
+                    android:textColor="#FF5722"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:layout_marginEnd="6dp" />
+
+                <TextView
+                    android:id="@+id/linkCodeChar3"
+                    android:layout_width="44dp"
+                    android:layout_height="52dp"
+                    android:background="@android:color/white"
+                    android:gravity="center"
+                    android:text="-"
+                    android:textColor="#FF5722"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:layout_marginEnd="6dp" />
+
+                <TextView
+                    android:id="@+id/linkCodeChar4"
+                    android:layout_width="44dp"
+                    android:layout_height="52dp"
+                    android:background="@android:color/white"
+                    android:gravity="center"
+                    android:text="-"
+                    android:textColor="#FF5722"
+                    android:textSize="28sp"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <!-- Timer -->
+            <TextView
+                android:id="@+id/linkCodeTimer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Expire dans 10:00"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:layout_marginTop="8dp" />
+
+            <!-- Generate New Code Button -->
+            <Button
+                android:id="@+id/generateNewCodeButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nouveau code"
+                android:textSize="11sp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:layout_marginTop="6dp"
+                android:backgroundTint="@android:color/white"
+                android:textColor="#FF5722"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
         <!-- Instructions Steps -->
         <LinearLayout
             android:layout_width="wrap_content"

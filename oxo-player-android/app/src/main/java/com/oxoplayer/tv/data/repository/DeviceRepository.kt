@@ -296,4 +296,24 @@ class DeviceRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+    
+    /**
+     * Generate a link code for easy device activation
+     * The code is valid for 10 minutes
+     */
+    suspend fun generateLinkCode(): Result<LinkCodeResponse> = withContext(Dispatchers.IO) {
+        try {
+            val macAddress = getMacAddress()
+            val request = LinkCodeRequest(macAddress = macAddress)
+            val response = apiService.generateLinkCode(request)
+            
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Failed to generate link code: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

@@ -199,6 +199,15 @@ async function init() {
         tmdb_id INTEGER,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS link_codes (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(4) UNIQUE NOT NULL,
+        mac_address VARCHAR(17) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `;
     
     await db.exec(schema);
@@ -374,6 +383,15 @@ async function init() {
         tmdb_id INTEGER,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (host_id) REFERENCES xtream_hosts(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS link_codes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code VARCHAR(4) UNIQUE NOT NULL,
+        mac_address VARCHAR(17) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
 

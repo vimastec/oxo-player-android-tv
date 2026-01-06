@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Quand le bouton a le focus, texte noir pour être visible sur fond blanc -->
+    <item android:state_focused="true" android:color="#000000" />
+    <!-- État normal, texte blanc -->
+    <item android:color="#FFFFFF" />
+</selector>
+

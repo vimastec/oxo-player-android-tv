@@ -276,6 +276,20 @@ data class AppVersionInfo(
     val releaseDate: String?
 ) : java.io.Serializable
 
+/**
+ * Link Code - For easy device activation
+ */
+data class LinkCodeRequest(
+    @SerializedName("mac_address")
+    val macAddress: String
+)
+
+data class LinkCodeResponse(
+    val code: String,
+    @SerializedName("expires_at")
+    val expiresAt: String
+)
+
 
 
 

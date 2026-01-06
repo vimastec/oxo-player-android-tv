@@ -5,9 +5,12 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.ProgressBar
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -41,8 +44,13 @@ class SeriesActivity : AppCompatActivity() {
     private lateinit var searchEditText: EditText
     private lateinit var clearSearchButton: ImageView
     private lateinit var noResultsText: TextView
+    private lateinit var yearFilterSpinner: Spinner
     
     private val xtreamRepository = XtreamRepository()
+    
+    // Year filter
+    private var selectedYear: String? = null
+    private var availableYears = mutableListOf<String>()
     
     // Xtream mode data
     private var xtreamCategories = listOf<XtreamSeriesCategory>()
@@ -79,8 +87,10 @@ class SeriesActivity : AppCompatActivity() {
         searchEditText = findViewById(R.id.searchEditText)
         clearSearchButton = findViewById(R.id.clearSearchButton)
         noResultsText = findViewById(R.id.noResultsText)
+        yearFilterSpinner = findViewById(R.id.yearFilterSpinner)
         
         setupSearch()
+        setupYearFilter()
     }
     
     private fun setupSearch() {
@@ -99,6 +109,97 @@ class SeriesActivity : AppCompatActivity() {
         }
     }
     
+    private fun setupYearFilter() {
+        // Initialize with default value
+        availableYears.add("📅 Toutes les années")
+        val initialAdapter = ArrayAdapter(
+            this,
+            R.layout.spinner_year_item,
+            availableYears
+        )
+        initialAdapter.setDropDownViewResource(R.layout.spinner_year_dropdown)
+        yearFilterSpinner.adapter = initialAdapter
+        
+        yearFilterSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val selected = availableYears.getOrNull(position)
+                selectedYear = if (selected?.contains("Toutes") == true) null else selected
+                filterSeries(searchEditText.text.toString().trim())
+            }
+            
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedYear = null
+            }
+        }
+    }
+    
+    private fun updateYearFilter(series: List<XtreamSeries>) {
+        // Extract years from series (from releaseDate or title)
+        val years = series.mapNotNull { s ->
+            // Try releaseDate first, then extract from title
+            s.releaseDate?.take(4) 
+                ?: s.releaseDateAlt?.take(4)
+                ?: extractYearFromTitle(s.name)
+        }.distinct().sortedDescending()
+        
+        availableYears.clear()
+        availableYears.add("📅 Toutes les années")
+        availableYears.addAll(years)
+        
+        runOnUiThread {
+            val adapter = ArrayAdapter(
+                this,
+                R.layout.spinner_year_item,
+                availableYears
+            )
+            adapter.setDropDownViewResource(R.layout.spinner_year_dropdown)
+            yearFilterSpinner.adapter = adapter
+            
+            android.util.Log.d(TAG, "Year filter updated with ${years.size} years")
+        }
+    }
+    
+    private fun extractYearFromTitle(title: String): String? {
+        // Try multiple year patterns:
+        // 1. "(2024)" - standard format
+        // 2. "2024" at end of title
+        // 3. "[2024]" - bracket format
+        // 4. "- 2024" - dash format
+        
+        // Pattern 1: (YYYY)
+        val pattern1 = Regex("\\((19|20)\\d{2}\\)")
+        pattern1.find(title)?.let {
+            return it.value.replace("(", "").replace(")", "")
+        }
+        
+        // Pattern 2: [YYYY]
+        val pattern2 = Regex("\\[(19|20)\\d{2}\\]")
+        pattern2.find(title)?.let {
+            return it.value.replace("[", "").replace("]", "")
+        }
+        
+        // Pattern 3: YYYY at the end (with space before)
+        val pattern3 = Regex("\\s(19|20)\\d{2}$")
+        pattern3.find(title)?.let {
+            return it.value.trim()
+        }
+        
+        // Pattern 4: - YYYY or . YYYY
+        val pattern4 = Regex("[-.\\s](19|20)\\d{2}(?:[^0-9]|$)")
+        pattern4.find(title)?.let {
+            val year = Regex("(19|20)\\d{2}").find(it.value)
+            return year?.value
+        }
+        
+        return null
+    }
+    
+    private fun getSeriesYear(series: XtreamSeries): String? {
+        return series.releaseDate?.take(4) 
+            ?: series.releaseDateAlt?.take(4)
+            ?: extractYearFromTitle(series.name)
+    }
+    
     private fun filterSeries(query: String) {
         isSearchActive = query.isNotEmpty()
         
@@ -110,7 +211,7 @@ class SeriesActivity : AppCompatActivity() {
     }
     
     private fun filterXtreamSeries(query: String) {
-        val filteredSeries = if (query.isEmpty()) {
+        var filteredSeries = if (query.isEmpty()) {
             // When search is cleared, show current category
             currentXtreamSeries
         } else {
@@ -120,7 +221,15 @@ class SeriesActivity : AppCompatActivity() {
             }
         }
         
-        noResultsText.visibility = if (filteredSeries.isEmpty() && query.isNotEmpty()) View.VISIBLE else View.GONE
+        // Apply year filter
+        if (selectedYear != null) {
+            filteredSeries = filteredSeries.filter { series ->
+                val seriesYear = getSeriesYear(series)
+                seriesYear == selectedYear
+            }
+        }
+        
+        noResultsText.visibility = if (filteredSeries.isEmpty() && (query.isNotEmpty() || selectedYear != null)) View.VISIBLE else View.GONE
         
         val adapter = XtreamSeriesAdapter(filteredSeries) { series ->
             onXtreamSeriesSelected(series)
@@ -249,6 +358,9 @@ class SeriesActivity : AppCompatActivity() {
                 }
             }
             
+            // Update year filter with all available years
+            updateYearFilter(allXtreamSeries)
+            
             android.util.Log.d(TAG, "Loaded ${allXtreamSeries.size} total series for global search")
         }
     }
@@ -303,12 +415,38 @@ class SeriesActivity : AppCompatActivity() {
     private fun displayXtreamSeries() {
         showLoading(false)
         
+        // Update year filter with current category series
+        updateYearFilterFromCurrentSeries()
+        
         val adapter = XtreamSeriesAdapter(currentXtreamSeries) { series ->
             onXtreamSeriesSelected(series)
         }
         seriesRecyclerView.adapter = adapter
         
         android.util.Log.d(TAG, "Displaying ${currentXtreamSeries.size} series for $currentCategoryName")
+    }
+    
+    private fun updateYearFilterFromCurrentSeries() {
+        // Extract years from current category series
+        val years = currentXtreamSeries.mapNotNull { getSeriesYear(it) }
+            .distinct()
+            .sortedDescending()
+        
+        if (years.isEmpty()) return
+        
+        availableYears.clear()
+        availableYears.add("📅 Toutes les années")
+        availableYears.addAll(years)
+        
+        val adapter = ArrayAdapter(
+            this,
+            R.layout.spinner_year_item,
+            availableYears
+        )
+        adapter.setDropDownViewResource(R.layout.spinner_year_dropdown)
+        yearFilterSpinner.adapter = adapter
+        
+        android.util.Log.d(TAG, "Year filter updated with ${years.size} years: ${years.take(5)}")
     }
     
     private fun onXtreamSeriesSelected(series: XtreamSeries) {

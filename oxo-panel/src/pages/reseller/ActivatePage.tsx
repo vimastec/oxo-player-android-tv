@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Tv, Loader2, CheckCircle, AlertCircle, Clock, RefreshCw } from 'lucide-react';
+import { Tv, Loader2, CheckCircle, AlertCircle, Clock, RefreshCw, Link, Search } from 'lucide-react';
 import { resellerApi } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -18,6 +18,14 @@ export function ActivatePage() {
     data?: any;
   } | null>(null);
   
+  // Link Code state
+  const [linkCode, setLinkCode] = useState('');
+  const [isCheckingLinkCode, setIsCheckingLinkCode] = useState(false);
+  const [linkCodeResult, setLinkCodeResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  
   // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmationData, setConfirmationData] = useState<ConfirmationData | null>(null);
@@ -33,9 +41,57 @@ export function ActivatePage() {
     return formatted.slice(0, 17); // Max length XX:XX:XX:XX:XX:XX
   };
 
+  const formatLinkCode = (value: string) => {
+    // Only alphanumeric, uppercase, max 4 chars
+    return value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
+  };
+
   const handleMacChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMacAddress(formatMacAddress(e.target.value));
     setResult(null);
+  };
+
+  const handleLinkCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLinkCode(formatLinkCode(e.target.value));
+    setLinkCodeResult(null);
+  };
+
+  const handleCheckLinkCode = async () => {
+    if (linkCode.length !== 4) {
+      setLinkCodeResult({
+        success: false,
+        message: 'Le code doit contenir 4 caractères',
+      });
+      return;
+    }
+
+    setIsCheckingLinkCode(true);
+    setLinkCodeResult(null);
+
+    try {
+      const response = await resellerApi.checkLinkCode(linkCode);
+      const macFromCode = response.data.mac_address;
+      
+      setMacAddress(macFromCode);
+      setLinkCodeResult({
+        success: true,
+        message: `MAC trouvée: ${macFromCode}`,
+      });
+      setLinkCode(''); // Clear the code after success
+    } catch (error: any) {
+      const errorMessage = error.response?.status === 410 
+        ? 'Code expiré'
+        : error.response?.status === 404
+        ? 'Code non trouvé ou déjà utilisé'
+        : error.response?.data?.error || 'Erreur lors de la vérification';
+      
+      setLinkCodeResult({
+        success: false,
+        message: errorMessage,
+      });
+    } finally {
+      setIsCheckingLinkCode(false);
+    }
   };
 
   const handleActivate = async (e: React.FormEvent, forceExtend = false) => {
@@ -135,6 +191,56 @@ export function ActivatePage() {
         </div>
 
         <form onSubmit={handleActivate} className="space-y-4">
+          {/* Link Code Section */}
+          <div className="bg-base-200 rounded-xl p-4 mb-2">
+            <div className="flex items-center gap-2 mb-3">
+              <Link className="w-4 h-4 text-primary" />
+              <label className="text-sm font-medium">
+                Code Link (optionnel)
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Ex: X4R5"
+                value={linkCode}
+                onChange={handleLinkCodeChange}
+                className="font-mono text-xl tracking-widest text-center flex-1"
+                maxLength={4}
+                style={{ letterSpacing: '0.5em' }}
+              />
+              <button
+                type="button"
+                onClick={handleCheckLinkCode}
+                disabled={isCheckingLinkCode || linkCode.length !== 4}
+                className="btn btn-secondary px-4"
+              >
+                {isCheckingLinkCode ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Search className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+            {linkCodeResult && (
+              <p className={`text-xs mt-2 ${linkCodeResult.success ? 'text-success' : 'text-error'}`}>
+                {linkCodeResult.message}
+              </p>
+            )}
+            <p className="text-xs text-muted mt-2">
+              Entrez le code affiché sur l'application du client pour remplir automatiquement la MAC
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-base-300"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-base-100 text-muted">ou entrez la MAC manuellement</span>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-muted mb-2">
               Adresse MAC

@@ -60,6 +60,7 @@ router.get('/check', async (req, res) => {
     if (!updateAvailable) {
       return res.json({
         updateAvailable: false,
+        hasUpdate: false,  // Compatibilité avec anciennes versions
         currentVersion: currentVersion,
         latestVersionCode: latestVersion.version_code,
         message: 'App is up to date'
@@ -75,6 +76,7 @@ router.get('/check', async (req, res) => {
 
     res.json({
       updateAvailable: true,
+      hasUpdate: true,  // Compatibilité avec anciennes versions
       isMandatory,
       currentVersion: currentVersion,
       latestVersion: {
