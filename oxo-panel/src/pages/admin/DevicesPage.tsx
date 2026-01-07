@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Tv } from 'lucide-react';
+import { Loader2, Tv, Ban, CheckCircle } from 'lucide-react';
 import { adminApi } from '../../services/api';
 
 interface Device {
@@ -18,7 +18,8 @@ interface Device {
 export function AdminDevicesPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'active' | 'trial' | 'expired'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'trial' | 'expired' | 'disabled'>('all');
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
     loadDevices();
@@ -35,6 +36,23 @@ export function AdminDevicesPage() {
     }
   };
 
+  const handleToggleStatus = async (device: Device) => {
+    const newStatus = device.status === 'disabled' ? 'active' : 'disabled';
+    setUpdatingId(device.id);
+    try {
+      await adminApi.updateDeviceStatus(device.id, newStatus);
+      // Mettre à jour localement
+      setDevices(devices.map(d => 
+        d.id === device.id ? { ...d, status: newStatus } : d
+      ));
+    } catch (error) {
+      console.error('Error updating device status:', error);
+      alert('Erreur lors de la mise à jour du statut');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const filteredDevices = devices.filter((d) => {
     if (filter === 'all') return true;
     return d.status === filter;
@@ -48,6 +66,8 @@ export function AdminDevicesPage() {
         return <span className="badge badge-info">Essai</span>;
       case 'expired':
         return <span className="badge badge-error">Expiré</span>;
+      case 'disabled':
+        return <span className="badge bg-gray-600 text-white">Désactivé</span>;
       default:
         return <span className="badge">{status}</span>;
     }
@@ -66,7 +86,7 @@ export function AdminDevicesPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Tous les appareils</h1>
         <div className="flex gap-2">
-          {['all', 'active', 'trial', 'expired'].map((f) => (
+          {['all', 'active', 'trial', 'expired', 'disabled'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f as any)}
@@ -76,7 +96,7 @@ export function AdminDevicesPage() {
                   : 'bg-card hover:bg-border'
               }`}
             >
-              {f === 'all' ? 'Tout' : f === 'active' ? 'Actifs' : f === 'trial' ? 'Essai' : 'Expirés'}
+              {f === 'all' ? 'Tout' : f === 'active' ? 'Actifs' : f === 'trial' ? 'Essai' : f === 'expired' ? 'Expirés' : 'Désactivés'}
             </button>
           ))}
         </div>
@@ -94,6 +114,7 @@ export function AdminDevicesPage() {
                   <th>Playlist</th>
                   <th>Expiration</th>
                   <th>Dernière connexion</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -127,6 +148,32 @@ export function AdminDevicesPage() {
                       {device.last_seen
                         ? new Date(device.last_seen).toLocaleString('fr-FR')
                         : 'Jamais'}
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => handleToggleStatus(device)}
+                        disabled={updatingId === device.id}
+                        className={`flex items-center gap-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
+                          device.status === 'disabled'
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-red-600 hover:bg-red-700 text-white'
+                        }`}
+                        title={device.status === 'disabled' ? 'Réactiver' : 'Désactiver'}
+                      >
+                        {updatingId === device.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : device.status === 'disabled' ? (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            Activer
+                          </>
+                        ) : (
+                          <>
+                            <Ban className="w-4 h-4" />
+                            Désactiver
+                          </>
+                        )}
+                      </button>
                     </td>
                   </tr>
                 ))}

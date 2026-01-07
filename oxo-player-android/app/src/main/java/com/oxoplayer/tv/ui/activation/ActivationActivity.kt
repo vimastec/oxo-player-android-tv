@@ -288,6 +288,20 @@ class ActivationActivity : AppCompatActivity() {
                     "expired" -> {
                         showExpiredStatus()
                         // Keep auto-refresh active (waiting for renewal)
+                        // Show link code for renewal
+                        linkCodeSection.visibility = View.VISIBLE
+                        if (!hasValidLinkCode) {
+                            generateLinkCode()
+                        }
+                    }
+                    "disabled" -> {
+                        showDisabledStatus()
+                        // Keep auto-refresh active (waiting for admin to re-enable)
+                        // Show link code so user can contact reseller
+                        linkCodeSection.visibility = View.VISIBLE
+                        if (!hasValidLinkCode) {
+                            generateLinkCode()
+                        }
                     }
                     else -> {
                         showError("Statut inconnu")
@@ -333,6 +347,15 @@ class ActivationActivity : AppCompatActivity() {
         progressBar.visibility = View.GONE
         statusText.text = "⚠️ Abonnement expiré"
         daysRemainingText.text = "Contactez votre revendeur pour renouveler"
+        daysRemainingText.visibility = View.VISIBLE
+        retryButton.visibility = View.VISIBLE
+        continueButton.visibility = View.GONE
+    }
+    
+    private fun showDisabledStatus() {
+        progressBar.visibility = View.GONE
+        statusText.text = "🚫 Appareil désactivé"
+        daysRemainingText.text = "Contactez l'administrateur pour réactiver"
         daysRemainingText.visibility = View.VISIBLE
         retryButton.visibility = View.VISIBLE
         continueButton.visibility = View.GONE

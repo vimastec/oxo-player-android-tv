@@ -70,6 +70,7 @@ export const adminApi = {
   
   // Devices
   getDevices: () => api.get('/admin/devices'),
+  updateDeviceStatus: (id: number, status: string) => api.put(`/admin/devices/${id}/status`, { status }),
   
   // Transactions
   getTransactions: () => api.get('/admin/transactions'),
@@ -144,6 +145,8 @@ export const resellerApi = {
   },
   activateDevicePlaylist: (mac: string, playlistId: number) =>
     api.put(`/reseller/devices/${mac}/playlists/${playlistId}/activate`),
+  updateDevicePlaylist: (mac: string, playlistId: number, data: { name?: string; playlist_url?: string; host?: string; username?: string; password?: string; epg_url?: string }) =>
+    api.put(`/reseller/devices/${mac}/playlists/${playlistId}`, data),
   deleteDevicePlaylist: (mac: string, playlistId: number) =>
     api.delete(`/reseller/devices/${mac}/playlists/${playlistId}`),
   

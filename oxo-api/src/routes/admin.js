@@ -235,6 +235,40 @@ router.get('/devices', async (req, res) => {
   res.json(devices);
 });
 
+// Update device status (disable/enable)
+router.put('/devices/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    // Validate status
+    const validStatuses = ['active', 'trial', 'expired', 'disabled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Statut invalide' });
+    }
+    
+    // Check if device exists
+    const device = await db.prepare('SELECT * FROM devices WHERE id = ?').get(id);
+    if (!device) {
+      return res.status(404).json({ error: 'Appareil non trouvé' });
+    }
+    
+    // Update status
+    await db.prepare('UPDATE devices SET status = ? WHERE id = ?').run(status, id);
+    
+    res.json({ 
+      success: true, 
+      message: `Statut mis à jour: ${status}`,
+      device_id: id,
+      new_status: status
+    });
+    
+  } catch (error) {
+    console.error('Error updating device status:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du statut' });
+  }
+});
+
 // Transaction history
 router.get('/transactions', async (req, res) => {
   const transactions = await db.prepare(`

@@ -146,103 +146,167 @@ export function ResellerDevicesPage() {
 
   return (
     <div className="animate-fadeIn">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Mes appareils</h1>
-        <span className="text-muted">{devices.length} appareil(s)</span>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold">Mes appareils</h1>
+        <span className="text-muted text-sm">{devices.length} appareil(s)</span>
       </div>
 
       {/* Search bar */}
-      <div className="card mb-4">
+      <div className="card mb-4 !p-3 sm:!p-6">
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
+          <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 sm:w-5 h-4 sm:h-5 text-muted" />
           <input
             type="text"
             placeholder="Rechercher une adresse MAC..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-12 font-mono"
+            className="pl-10 sm:pl-12 font-mono text-sm sm:text-base"
           />
         </div>
       </div>
 
       {devices.length > 0 ? (
-        <div className="card overflow-hidden">
+        <>
           {filteredDevices.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Adresse MAC</th>
-                    <th>Statut</th>
-                    <th>Expiration</th>
-                    <th>Jours</th>
-                    <th>Playlist</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredDevices.map((device) => {
-                    const daysRemaining = device.expiration_date
-                      ? getDaysRemaining(device.expiration_date)
-                      : 0;
+            <>
+              {/* Vue Mobile - Cartes */}
+              <div className="block md:hidden space-y-3">
+                {filteredDevices.map((device) => {
+                  const daysRemaining = device.expiration_date
+                    ? getDaysRemaining(device.expiration_date)
+                    : 0;
 
-                    return (
-                      <tr key={device.id}>
-                        <td className="font-mono font-medium">{device.mac_address}</td>
-                        <td>{getStatusBadge(device.status)}</td>
-                        <td>
-                          {device.expiration_date
-                            ? new Date(device.expiration_date).toLocaleDateString('fr-FR')
-                            : '-'}
-                        </td>
-                        <td>
+                  return (
+                    <div key={device.id} className="card !p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-mono font-medium text-sm break-all">{device.mac_address}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            {getStatusBadge(device.status)}
+                            {device.playlist_type === 'xtream' && device.xtream_host ? (
+                              <span className="badge badge-success">Xtream</span>
+                            ) : device.playlist_url ? (
+                              <span className="badge badge-success">M3U</span>
+                            ) : (
+                              <span className="badge badge-warning">Non configurée</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
                           {daysRemaining > 0 ? (
-                            <span className={daysRemaining < 30 ? 'text-warning' : 'text-success'}>
+                            <span className={`text-lg font-bold ${daysRemaining < 30 ? 'text-warning' : 'text-success'}`}>
                               {daysRemaining}j
                             </span>
                           ) : (
-                            <span className="text-error">0j</span>
+                            <span className="text-lg font-bold text-error">0j</span>
                           )}
-                        </td>
-                        <td>
-                          {device.playlist_type === 'xtream' && device.xtream_host ? (
-                            <span className="badge badge-success">Xtream</span>
-                          ) : device.playlist_url ? (
-                            <span className="badge badge-success">M3U</span>
-                          ) : (
-                            <span className="badge badge-warning">Non configurée</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleOpenPlaylistModal(device)}
-                              className="btn btn-sm btn-secondary"
-                              title="Configurer playlist"
-                            >
-                              <Upload className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => navigate(`/reseller/devices/${device.mac_address}/playlists`)}
-                              className="btn btn-sm btn-primary"
-                              title="Gérer playlists"
-                            >
-                              <List className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
+                          <p className="text-xs text-muted mt-1">
+                            {device.expiration_date
+                              ? new Date(device.expiration_date).toLocaleDateString('fr-FR')
+                              : '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleOpenPlaylistModal(device)}
+                          className="btn btn-sm btn-secondary flex-1 gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Config rapide
+                        </button>
+                        <button
+                          onClick={() => navigate(`/reseller/devices/${device.mac_address}/playlists`)}
+                          className="btn btn-sm btn-primary flex-1 gap-2"
+                        >
+                          <List className="w-4 h-4" />
+                          Playlists
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Vue Desktop - Tableau */}
+              <div className="hidden md:block card overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Adresse MAC</th>
+                        <th>Statut</th>
+                        <th>Expiration</th>
+                        <th>Jours</th>
+                        <th>Playlist</th>
+                        <th>Actions</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {filteredDevices.map((device) => {
+                        const daysRemaining = device.expiration_date
+                          ? getDaysRemaining(device.expiration_date)
+                          : 0;
+
+                        return (
+                          <tr key={device.id}>
+                            <td className="font-mono font-medium">{device.mac_address}</td>
+                            <td>{getStatusBadge(device.status)}</td>
+                            <td>
+                              {device.expiration_date
+                                ? new Date(device.expiration_date).toLocaleDateString('fr-FR')
+                                : '-'}
+                            </td>
+                            <td>
+                              {daysRemaining > 0 ? (
+                                <span className={daysRemaining < 30 ? 'text-warning' : 'text-success'}>
+                                  {daysRemaining}j
+                                </span>
+                              ) : (
+                                <span className="text-error">0j</span>
+                              )}
+                            </td>
+                            <td>
+                              {device.playlist_type === 'xtream' && device.xtream_host ? (
+                                <span className="badge badge-success">Xtream</span>
+                              ) : device.playlist_url ? (
+                                <span className="badge badge-success">M3U</span>
+                              ) : (
+                                <span className="badge badge-warning">Non configurée</span>
+                              )}
+                            </td>
+                            <td>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleOpenPlaylistModal(device)}
+                                  className="btn btn-sm btn-secondary"
+                                  title="Configurer playlist"
+                                >
+                                  <Upload className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => navigate(`/reseller/devices/${device.mac_address}/playlists`)}
+                                  className="btn btn-sm btn-primary"
+                                  title="Gérer playlists"
+                                >
+                                  <List className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           ) : (
-            <div className="text-center py-8 text-muted">
+            <div className="card text-center py-8 text-muted">
               Aucun résultat pour "{searchQuery}"
             </div>
           )}
-        </div>
+        </>
       ) : (
         <div className="card text-center py-12">
           <Tv className="w-16 h-16 text-muted mx-auto mb-4" />

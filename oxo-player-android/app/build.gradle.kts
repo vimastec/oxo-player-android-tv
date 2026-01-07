@@ -21,8 +21,8 @@ android {
         applicationId = "com.oxoplayer.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 25
-        versionName = "1.6.4"
+        versionCode = 28
+        versionName = "1.6.7"
         
         // API Configuration
         buildConfigField("String", "API_BASE_URL", "\"https://oxo-api-production.up.railway.app/api/\"")

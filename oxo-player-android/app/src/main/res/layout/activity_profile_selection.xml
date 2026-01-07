@@ -188,6 +188,22 @@
                     android:gravity="end">
 
                     <Button
+                        android:id="@+id/deleteProfileButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:text="Supprimer"
+                        android:textColor="@android:color/white"
+                        android:backgroundTint="#D32F2F"
+                        android:paddingHorizontal="24dp"
+                        android:layout_marginEnd="16dp"
+                        android:focusable="true"
+                        android:visibility="gone"
+                        android:nextFocusUp="@id/pinEnabledCheckbox"
+                        android:nextFocusRight="@id/cancelButton"
+                        android:nextFocusLeft="@id/deleteProfileButton"
+                        android:nextFocusDown="@id/deleteProfileButton" />
+
+                    <Button
                         android:id="@+id/cancelButton"
                         android:layout_width="wrap_content"
                         android:layout_height="48dp"
@@ -199,7 +215,7 @@
                         android:focusable="true"
                         android:nextFocusUp="@id/pinEnabledCheckbox"
                         android:nextFocusRight="@id/saveButton"
-                        android:nextFocusLeft="@id/cancelButton"
+                        android:nextFocusLeft="@id/deleteProfileButton"
                         android:nextFocusDown="@id/cancelButton" />
 
                     <Button

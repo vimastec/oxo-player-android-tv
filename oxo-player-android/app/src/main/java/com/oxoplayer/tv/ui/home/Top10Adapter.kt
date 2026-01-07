@@ -27,7 +27,12 @@ data class Top10Item(
     // Extra data for direct navigation
     val streamIcon: String? = null,   // For movies
     val cover: String? = null,        // For series
-    val containerExtension: String? = null // For movies (mp4, mkv, etc.)
+    val containerExtension: String? = null, // For movies (mp4, mkv, etc.)
+    // TMDB data for Hero Banner
+    val tmdbBackdropUrl: String? = null,  // 16:9 backdrop image
+    val tmdbOverview: String? = null,     // Description
+    val tmdbVoteAverage: Double? = null,  // Rating (0-10)
+    val tmdbYear: String? = null          // Release year
 )
 
 /**

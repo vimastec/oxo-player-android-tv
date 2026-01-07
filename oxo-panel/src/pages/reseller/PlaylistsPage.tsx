@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, CheckCircle, Loader2, Upload, Link as LinkIcon, Tv, X } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle, Loader2, Upload, Link as LinkIcon, Tv, X, Pencil } from 'lucide-react';
 import { resellerApi } from '../../services/api';
 
 interface Playlist {
@@ -10,6 +10,7 @@ interface Playlist {
   playlist_url?: string;
   xtream_host?: string;
   xtream_username?: string;
+  xtream_password?: string;
   epg_url?: string;
   is_active: boolean;
   created_at: string;
@@ -21,6 +22,8 @@ export function PlaylistsPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
   const [playlistType, setPlaylistType] = useState<'m3u' | 'xtream' | 'upload'>('m3u');
   
   // Form fields
@@ -122,6 +125,72 @@ export function PlaylistsPage() {
     }
   };
 
+  const openEditModal = (playlist: Playlist) => {
+    setEditingPlaylist(playlist);
+    setName(playlist.name);
+    setEpgUrl(playlist.epg_url || '');
+    
+    if (playlist.playlist_type === 'xtream') {
+      setPlaylistType('xtream');
+      setXtreamHost(playlist.xtream_host || '');
+      setXtreamUsername(playlist.xtream_username || '');
+      setXtreamPassword(playlist.xtream_password || '');
+      setPlaylistUrl('');
+    } else {
+      setPlaylistType('m3u');
+      setPlaylistUrl(playlist.playlist_url || '');
+      setXtreamHost('');
+      setXtreamUsername('');
+      setXtreamPassword('');
+    }
+    
+    setShowEditModal(true);
+  };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setEditingPlaylist(null);
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setName('');
+    setPlaylistUrl('');
+    setFile(null);
+    setXtreamHost('');
+    setXtreamUsername('');
+    setXtreamPassword('');
+    setEpgUrl('');
+  };
+
+  const handleEditPlaylist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mac || !editingPlaylist) return;
+
+    setIsSubmitting(true);
+    try {
+      const updateData: any = { name };
+      
+      if (editingPlaylist.playlist_type === 'xtream') {
+        if (xtreamHost) updateData.host = xtreamHost;
+        if (xtreamUsername) updateData.username = xtreamUsername;
+        if (xtreamPassword) updateData.password = xtreamPassword;
+      } else {
+        if (playlistUrl) updateData.playlist_url = playlistUrl;
+      }
+      
+      if (epgUrl) updateData.epg_url = epgUrl;
+
+      await resellerApi.updateDevicePlaylist(mac, editingPlaylist.id, updateData);
+      closeEditModal();
+      loadPlaylists();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erreur lors de la modification');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -132,8 +201,9 @@ export function PlaylistsPage() {
 
   return (
     <div className="animate-fadeIn">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
           <button
             onClick={() => navigate('/reseller/devices')}
             className="btn btn-ghost btn-sm gap-2"
@@ -141,89 +211,156 @@ export function PlaylistsPage() {
             <ArrowLeft className="w-4 h-4" />
             Retour
           </button>
-          <h1 className="text-2xl font-bold">Playlists - {mac}</h1>
+          <div>
+            <h1 className="text-lg sm:text-2xl font-bold">Playlists</h1>
+            <p className="text-xs sm:text-sm text-muted font-mono">{mac}</p>
+          </div>
         </div>
         {playlists.length < 5 && (
           <button
-            onClick={() => setShowAddModal(true)}
-            className="btn btn-primary gap-2"
+            onClick={() => {
+              resetForm();
+              setShowAddModal(true);
+            }}
+            className="btn btn-primary gap-2 w-full sm:w-auto"
           >
             <Plus className="w-5 h-5" />
-            Ajouter une playlist
+            Ajouter
           </button>
         )}
       </div>
 
       {playlists.length === 0 ? (
-        <div className="card bg-base-200">
-          <div className="card-body text-center py-12">
-            <p className="text-gray-400">Aucune playlist ajoutée</p>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="btn btn-primary mx-auto mt-4 gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Ajouter la première playlist
-            </button>
-          </div>
+        <div className="card text-center py-12">
+          <Tv className="w-16 h-16 text-muted mx-auto mb-4" />
+          <p className="text-muted mb-4">Aucune playlist ajoutée</p>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowAddModal(true);
+            }}
+            className="btn btn-primary mx-auto gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Ajouter la première playlist
+          </button>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="space-y-3">
           {playlists.map((playlist) => (
             <div
               key={playlist.id}
-              className={`card bg-base-200 ${
+              className={`card !p-4 ${
                 playlist.is_active ? 'ring-2 ring-primary' : ''
               }`}
             >
-              <div className="card-body">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+              {/* Mobile View */}
+              <div className="block sm:hidden">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
                     {playlist.is_active && (
-                      <CheckCircle className="w-6 h-6 text-success" />
+                      <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />
                     )}
                     <div>
-                      <h3 className="font-semibold text-lg">{playlist.name}</h3>
-                      <div className="flex gap-4 mt-1 text-sm text-gray-400">
-                        <span className="badge badge-sm">
-                          {playlist.playlist_type === 'xtream' ? 'Xtream Code' : 'M3U'}
-                        </span>
-                        {playlist.playlist_type === 'xtream' ? (
-                          <>
-                            <span>Host: {playlist.xtream_host}</span>
-                            <span>User: {playlist.xtream_username}</span>
-                          </>
-                        ) : (
-                          <span>URL: {playlist.playlist_url}</span>
-                        )}
-                      </div>
-                      {playlist.epg_url && (
-                        <div className="text-sm text-gray-400 mt-1">
-                          EPG: {playlist.epg_url}
-                        </div>
-                      )}
-                      <div className="text-xs text-gray-500 mt-1">
-                        Ajoutée le {new Date(playlist.created_at).toLocaleDateString('fr-FR')}
-                      </div>
+                      <h3 className="font-semibold">{playlist.name}</h3>
+                      <span className="badge badge-sm mt-1">
+                        {playlist.playlist_type === 'xtream' ? 'Xtream' : 'M3U'}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {!playlist.is_active && (
-                      <button
-                        onClick={() => handleActivatePlaylist(playlist.id)}
-                        className="btn btn-sm btn-success"
-                      >
-                        Activer
-                      </button>
-                    )}
+                </div>
+                
+                <div className="text-xs text-muted space-y-1 mb-3">
+                  {playlist.playlist_type === 'xtream' ? (
+                    <>
+                      <p className="truncate">Host: {playlist.xtream_host}</p>
+                      <p>User: {playlist.xtream_username}</p>
+                    </>
+                  ) : (
+                    <p className="truncate">URL: {playlist.playlist_url}</p>
+                  )}
+                  {playlist.epg_url && <p className="truncate">EPG: {playlist.epg_url}</p>}
+                </div>
+
+                <div className="flex gap-2">
+                  {!playlist.is_active && (
                     <button
-                      onClick={() => handleDeletePlaylist(playlist.id)}
-                      className="btn btn-sm btn-error gap-2"
+                      onClick={() => handleActivatePlaylist(playlist.id)}
+                      className="btn btn-sm btn-success flex-1"
                     >
-                      <Trash2 className="w-4 h-4" />
-                      Supprimer
+                      Activer
                     </button>
+                  )}
+                  <button
+                    onClick={() => openEditModal(playlist)}
+                    className="btn btn-sm btn-secondary flex-1 gap-1"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => handleDeletePlaylist(playlist.id)}
+                    className="btn btn-sm btn-danger"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Desktop View */}
+              <div className="hidden sm:flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  {playlist.is_active && (
+                    <CheckCircle className="w-6 h-6 text-success flex-shrink-0" />
+                  )}
+                  <div>
+                    <h3 className="font-semibold text-lg">{playlist.name}</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-muted">
+                      <span className="badge badge-sm">
+                        {playlist.playlist_type === 'xtream' ? 'Xtream Code' : 'M3U'}
+                      </span>
+                      {playlist.playlist_type === 'xtream' ? (
+                        <>
+                          <span>Host: {playlist.xtream_host}</span>
+                          <span>User: {playlist.xtream_username}</span>
+                        </>
+                      ) : (
+                        <span className="truncate max-w-md">URL: {playlist.playlist_url}</span>
+                      )}
+                    </div>
+                    {playlist.epg_url && (
+                      <p className="text-sm text-muted mt-1 truncate max-w-md">
+                        EPG: {playlist.epg_url}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted mt-1">
+                      Ajoutée le {new Date(playlist.created_at).toLocaleDateString('fr-FR')}
+                    </p>
                   </div>
+                </div>
+                <div className="flex gap-2">
+                  {!playlist.is_active && (
+                    <button
+                      onClick={() => handleActivatePlaylist(playlist.id)}
+                      className="btn btn-sm btn-success"
+                    >
+                      Activer
+                    </button>
+                  )}
+                  <button
+                    onClick={() => openEditModal(playlist)}
+                    className="btn btn-sm btn-secondary gap-2"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => handleDeletePlaylist(playlist.id)}
+                    className="btn btn-sm btn-danger gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Supprimer
+                  </button>
                 </div>
               </div>
             </div>
@@ -232,17 +369,118 @@ export function PlaylistsPage() {
       )}
 
       {playlists.length >= 5 && (
-        <div className="alert alert-warning mt-4">
-          <span>Limite de 5 playlists par appareil atteinte</span>
+        <div className="card !bg-warning/10 !border-warning/30 mt-4 !p-3 text-center text-sm text-warning">
+          Limite de 5 playlists par appareil atteinte
+        </div>
+      )}
+
+      {/* Edit Playlist Modal */}
+      {showEditModal && editingPlaylist && (
+        <div className="modal-overlay" onClick={() => !isSubmitting && closeEditModal()}>
+          <div className="modal-content p-4 sm:p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-bold">Modifier la playlist</h2>
+              <button
+                onClick={closeEditModal}
+                className="p-2 hover:bg-card rounded-lg"
+                disabled={isSubmitting}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditPlaylist} className="space-y-4 sm:space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-muted mb-2">Nom *</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Nom de la playlist"
+                  required
+                />
+              </div>
+
+              {editingPlaylist.playlist_type === 'xtream' ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">Host</label>
+                    <input
+                      type="text"
+                      value={xtreamHost}
+                      onChange={(e) => setXtreamHost(e.target.value)}
+                      placeholder="exemple.com:8080"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">Username</label>
+                    <input
+                      type="text"
+                      value={xtreamUsername}
+                      onChange={(e) => setXtreamUsername(e.target.value)}
+                      placeholder="username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-muted mb-2">Password</label>
+                    <input
+                      type="text"
+                      value={xtreamPassword}
+                      onChange={(e) => setXtreamPassword(e.target.value)}
+                      placeholder="Laisser vide pour conserver l'actuel"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-muted mb-2">URL M3U</label>
+                  <input
+                    type="url"
+                    value={playlistUrl}
+                    onChange={(e) => setPlaylistUrl(e.target.value)}
+                    placeholder="http://exemple.com/playlist.m3u"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-muted mb-2">URL EPG (optionnel)</label>
+                <input
+                  type="url"
+                  value={epgUrl}
+                  onChange={(e) => setEpgUrl(e.target.value)}
+                  placeholder="http://exemple.com/epg.xml"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="btn btn-secondary flex-1"
+                  disabled={isSubmitting}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !name}
+                  className="btn btn-primary flex-1"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
       {/* Add Playlist Modal */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => !isSubmitting && setShowAddModal(false)}>
-          <div className="modal-content p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Ajouter une playlist</h2>
+          <div className="modal-content p-4 sm:p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-bold">Ajouter une playlist</h2>
               <button
                 onClick={() => setShowAddModal(false)}
                 className="p-2 hover:bg-card rounded-lg"

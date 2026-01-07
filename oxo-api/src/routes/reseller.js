@@ -706,6 +706,53 @@ router.put('/devices/:mac/playlists/:playlistId/activate', async (req, res) => {
   });
 });
 
+// Update a playlist
+router.put('/devices/:mac/playlists/:playlistId', async (req, res) => {
+  const { mac, playlistId } = req.params;
+  const { name, playlist_url, host, username, password, epg_url } = req.body;
+  const resellerId = req.user.id;
+
+  const formattedMac = mac.toUpperCase().replace(/[^A-F0-9]/g, '').match(/.{2}/g)?.join(':');
+  
+  if (!formattedMac) {
+    return res.status(400).json({ error: 'Format MAC invalide' });
+  }
+
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+    .get(formattedMac, resellerId);
+  
+  if (!device) {
+    return res.status(404).json({ error: 'Appareil non trouvé ou non autorisé' });
+  }
+
+  const playlist = await db.prepare('SELECT * FROM playlists WHERE id = ? AND device_id = ?')
+    .get(playlistId, device.id);
+
+  if (!playlist) {
+    return res.status(404).json({ error: 'Playlist non trouvée' });
+  }
+
+  // Build update query dynamically
+  const updates = [];
+  const values = [];
+
+  if (name) { updates.push('name = ?'); values.push(name); }
+  if (playlist_url) { updates.push('playlist_url = ?'); values.push(playlist_url); }
+  if (host) { updates.push('xtream_host = ?'); values.push(host); }
+  if (username) { updates.push('xtream_username = ?'); values.push(username); }
+  if (password) { updates.push('xtream_password = ?'); values.push(password); }
+  if (epg_url !== undefined) { updates.push('epg_url = ?'); values.push(epg_url || null); }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'Aucune modification fournie' });
+  }
+
+  values.push(playlistId);
+  await db.prepare(`UPDATE playlists SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+  res.json({ success: true, message: 'Playlist modifiée' });
+});
+
 // Delete a playlist
 router.delete('/devices/:mac/playlists/:playlistId', async (req, res) => {
   const { mac, playlistId } = req.params;

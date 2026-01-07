@@ -34,6 +34,7 @@ class ProfileSelectionActivity : AppCompatActivity() {
     private lateinit var avatarSelectionContainer: LinearLayout
     private lateinit var saveButton: Button
     private lateinit var cancelButton: Button
+    private lateinit var deleteProfileButton: Button
     
     // PIN input dialog elements
     private lateinit var pinInputOverlay: FrameLayout
@@ -81,6 +82,7 @@ class ProfileSelectionActivity : AppCompatActivity() {
         avatarSelectionContainer = findViewById(R.id.avatarSelectionContainer)
         saveButton = findViewById(R.id.saveButton)
         cancelButton = findViewById(R.id.cancelButton)
+        deleteProfileButton = findViewById(R.id.deleteProfileButton)
         
         // PIN input overlay views
         pinInputOverlay = findViewById(R.id.pinInputOverlay)
@@ -110,6 +112,13 @@ class ProfileSelectionActivity : AppCompatActivity() {
         
         saveButton.setOnClickListener {
             saveProfile()
+        }
+        
+        deleteProfileButton.setOnClickListener {
+            editingProfile?.let { profile ->
+                hideCreateProfileDialog()
+                showDeleteConfirmation(profile)
+            }
         }
         
         editProfilesButton.setOnClickListener {
@@ -522,6 +531,7 @@ class ProfileSelectionActivity : AppCompatActivity() {
         pinEnabledCheckbox.isChecked = false
         pinCodeInput.setText("")
         pinCodeInput.visibility = View.GONE
+        deleteProfileButton.visibility = View.GONE // Hide delete button for new profiles
         selectedAvatarIndex = ProfileManager.getProfileCount() % avatarResources.size
         setupAvatarSelection()
         
@@ -542,6 +552,7 @@ class ProfileSelectionActivity : AppCompatActivity() {
         pinEnabledCheckbox.isChecked = profile.hasPin
         pinCodeInput.setText(profile.pin ?: "")
         pinCodeInput.visibility = if (profile.hasPin) View.VISIBLE else View.GONE
+        deleteProfileButton.visibility = View.VISIBLE // Show delete button for existing profiles
         selectedAvatarIndex = profile.avatarIndex
         setupAvatarSelection()
         

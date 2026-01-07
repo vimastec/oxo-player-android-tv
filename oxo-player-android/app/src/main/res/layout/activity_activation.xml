@@ -181,6 +181,16 @@
                 android:textColor="@android:color/white"
                 android:textSize="14sp"
                 android:textStyle="bold"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Timer - Moved before code -->
+            <TextView
+                android:id="@+id/linkCodeTimer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Expire dans 10:00"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
                 android:layout_marginBottom="8dp" />
 
             <!-- 4 Character Code Display -->
@@ -238,16 +248,6 @@
                     android:textStyle="bold" />
 
             </LinearLayout>
-
-            <!-- Timer -->
-            <TextView
-                android:id="@+id/linkCodeTimer"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Expire dans 10:00"
-                android:textColor="@android:color/white"
-                android:textSize="12sp"
-                android:layout_marginTop="8dp" />
 
             <!-- Generate New Code Button -->
             <Button

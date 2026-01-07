@@ -434,13 +434,13 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         
-        // Load featured movie
-        loadFeaturedMovie()
+        // Hero Banner is now loaded from Top 10 Series #1 (in displayTop10Items)
+        // loadFeaturedMovie() // Disabled - using Top 10 Series instead
     }
     
     /**
      * Start the 5-second timer before playing hero preview
-     * Only starts if featuredMovie and credentials are ready
+     * Only starts if featuredMovie/series and credentials are ready
      */
     private fun startHeroPreviewTimer() {
         // Cancel any existing timer
@@ -452,9 +452,9 @@ class HomeActivity : AppCompatActivity() {
             return
         }
         
-        // Check if we have the required data
-        if (featuredMovie == null) {
-            android.util.Log.d(TAG, "No featured movie yet, will retry when movie loads")
+        // Check if we have the required data (movie OR series)
+        if (featuredMovie == null && currentHeroSeriesId <= 0) {
+            android.util.Log.d(TAG, "No featured movie/series yet, will retry when loaded")
             return
         }
         
@@ -479,9 +479,16 @@ class HomeActivity : AppCompatActivity() {
     private fun playHeroPreview() {
         android.util.Log.d(TAG, "🎬 playHeroPreview() called")
         
+        // Check if we have a series to preview
+        if (currentHeroSeriesId > 0) {
+            playSeriesHeroPreview()
+            return
+        }
+        
+        // Fallback to movie preview (legacy)
         val movie = featuredMovie
         if (movie == null) {
-            android.util.Log.e(TAG, "❌ Hero preview: featuredMovie is NULL")
+            android.util.Log.e(TAG, "❌ Hero preview: no movie or series available")
             return
         }
         
@@ -515,6 +522,66 @@ class HomeActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             android.util.Log.e(TAG, "Error playing hero preview", e)
+        }
+    }
+    
+    /**
+     * Play series preview (S01E01) on Hero Banner
+     */
+    private fun playSeriesHeroPreview() {
+        android.util.Log.d(TAG, "🎬 playSeriesHeroPreview() for seriesId: $currentHeroSeriesId")
+        
+        val credentials = DataManager.xtreamCredentials
+        if (credentials == null) {
+            android.util.Log.e(TAG, "❌ Hero preview: xtreamCredentials is NULL")
+            return
+        }
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val seriesInfoResult = xtreamRepository.getSeriesInfo(currentHeroSeriesId)
+                seriesInfoResult.onSuccess { seriesInfo ->
+                    // Get first season and first episode
+                    val firstSeason = seriesInfo.episodes?.keys?.minOrNull()
+                    if (firstSeason != null) {
+                        val episodes = seriesInfo.episodes?.get(firstSeason)
+                        val firstEpisode = episodes?.minByOrNull { it.episodeNum }
+                        
+                        if (firstEpisode != null) {
+                            val streamUrl = "${credentials.host}/series/${credentials.username}/${credentials.password}/${firstEpisode.id}.${firstEpisode.containerExtension}"
+                            android.util.Log.d(TAG, "Starting series hero preview: $streamUrl")
+                            
+                            withContext(Dispatchers.Main) {
+                                try {
+                                    heroExoPlayer?.let { player ->
+                                        val mediaItem = MediaItem.fromUri(streamUrl)
+                                        player.setMediaItem(mediaItem)
+                                        player.prepare()
+                                        player.seekTo(HERO_PREVIEW_START_POSITION) // Start at 15 minutes
+                                        player.play()
+                                        isHeroPreviewPlaying = true
+                                        
+                                        // Schedule stop after preview duration
+                                        heroPreviewHandler?.postDelayed({
+                                            stopHeroPreview()
+                                        }, HERO_PREVIEW_DURATION)
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e(TAG, "Error starting series preview playback", e)
+                                }
+                            }
+                        } else {
+                            android.util.Log.e(TAG, "No episodes found for series")
+                        }
+                    } else {
+                        android.util.Log.e(TAG, "No seasons found for series")
+                    }
+                }.onFailure { error ->
+                    android.util.Log.e(TAG, "Error loading series info for preview: ${error.message}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error in playSeriesHeroPreview", e)
+            }
         }
     }
     
@@ -1127,8 +1194,204 @@ class HomeActivity : AppCompatActivity() {
             else 
                 "🔥 Séries Populaires"
             android.util.Log.d(TAG, "Top 10 Series section VISIBLE")
+            
+            // Display #1 Series on Hero Banner
+            displayHeroFromTop10Series(top10Series.first())
         } else {
             top10SeriesSection.visibility = View.GONE
+        }
+    }
+    
+    /**
+     * Display #1 Series from Top 10 on Hero Banner with TMDB data
+     */
+    private fun displayHeroFromTop10Series(series: Top10Item) {
+        android.util.Log.d(TAG, "🎬 Displaying Hero from Top 10 Series: ${series.title}")
+        
+        // Store series info for play button (we'll need to fetch XtreamSeries for playback)
+        featuredMovie = null // Clear any previous movie
+        currentHeroSeriesId = series.xtreamId
+        
+        // Set title
+        heroTitle.text = series.title
+        
+        // Show info layout with placeholder data
+        heroInfoLayout.visibility = View.VISIBLE
+        heroYear.text = "2024"
+        heroRating.text = "⭐ HD"
+        heroCategory.text = "Série"
+        heroDescription.visibility = View.GONE
+        
+        // Load poster temporarily while fetching TMDB backdrop
+        if (!series.posterUrl.isNullOrEmpty()) {
+            Glide.with(this)
+                .load(series.posterUrl)
+                .centerCrop()
+                .into(heroBackground)
+        }
+        
+        // Setup button click listeners for series
+        btnHeroPlay.setOnClickListener {
+            stopHeroPreview()
+            playFirstEpisodeOfSeries(series.xtreamId)
+        }
+        
+        btnHeroInfo.setOnClickListener {
+            stopHeroPreview()
+            openSeriesDetails(series.xtreamId)
+        }
+        
+        // Fetch TMDB data for backdrop (16:9), description, rating, year
+        fetchTmdbDataForHeroSeries(series.title)
+        
+        // Fetch trailer from TMDB
+        fetchTrailerFromTMDB(series.title)
+        
+        // Start the preview timer
+        startHeroPreviewTimer()
+        
+        android.util.Log.d(TAG, "Hero Banner set to Top 10 #1 Series: ${series.title}")
+    }
+    
+    /**
+     * Fetch TMDB data for Hero Series (backdrop, description, rating, year)
+     */
+    private fun fetchTmdbDataForHeroSeries(seriesTitle: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Clean title (remove year in parentheses)
+                val cleanTitle = seriesTitle.replace(Regex("\\s*\\(\\d{4}\\)\\s*$"), "").trim()
+                android.util.Log.d(TAG, "🔍 Searching TMDB for series: $cleanTitle")
+                
+                val response = TmdbClient.service.searchSeries(cleanTitle)
+                if (response.isSuccessful && response.body() != null) {
+                    val results = response.body()!!.results
+                    if (results.isNotEmpty()) {
+                        val tmdbSeries = results.first()
+                        android.util.Log.d(TAG, "✅ Found TMDB series: ${tmdbSeries.name}, backdrop: ${tmdbSeries.backdrop_path}")
+                        
+                        withContext(Dispatchers.Main) {
+                            // Load backdrop (16:9 image)
+                            val backdropUrl = TmdbClient.getBackdropUrl(tmdbSeries.backdrop_path)
+                            if (!backdropUrl.isNullOrEmpty()) {
+                                android.util.Log.d(TAG, "🖼️ Loading Hero backdrop: $backdropUrl")
+                                Glide.with(this@HomeActivity)
+                                    .load(backdropUrl)
+                                    .centerCrop()
+                                    .into(heroBackground)
+                            }
+                            
+                            // Update year
+                            val year = tmdbSeries.first_air_date?.take(4)
+                            if (!year.isNullOrEmpty()) {
+                                heroYear.text = year
+                            }
+                            
+                            // Update rating
+                            val rating = tmdbSeries.vote_average
+                            if (rating != null && rating > 0) {
+                                heroRating.text = "⭐ ${String.format("%.1f", rating)}"
+                            }
+                            
+                            // Update description
+                            val overview = tmdbSeries.overview
+                            if (!overview.isNullOrEmpty()) {
+                                heroDescription.text = overview
+                                heroDescription.visibility = View.VISIBLE
+                            }
+                        }
+                    } else {
+                        android.util.Log.w(TAG, "No TMDB results for: $cleanTitle")
+                    }
+                } else {
+                    android.util.Log.e(TAG, "TMDB search failed: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error fetching TMDB data for Hero", e)
+            }
+        }
+    }
+    
+    // Store current hero series ID for playback
+    private var currentHeroSeriesId: Int = -1
+    
+    /**
+     * Play first episode (S01E01) of a series
+     */
+    private fun playFirstEpisodeOfSeries(seriesId: Int) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val seriesInfoResult = xtreamRepository.getSeriesInfo(seriesId)
+                seriesInfoResult.onSuccess { seriesInfo ->
+                    // Get first season
+                    val firstSeason = seriesInfo.episodes?.keys?.minOrNull()
+                    if (firstSeason != null) {
+                        val episodes = seriesInfo.episodes?.get(firstSeason)
+                        val firstEpisode = episodes?.minByOrNull { it.episodeNum }
+                        
+                        if (firstEpisode != null) {
+                            withContext(Dispatchers.Main) {
+                                // Build stream URL
+                                val credentials = DataManager.xtreamCredentials
+                                if (credentials != null) {
+                                    val streamUrl = "${credentials.host}/series/${credentials.username}/${credentials.password}/${firstEpisode.id}.${firstEpisode.containerExtension}"
+                                    
+                                    val intent = Intent(this@HomeActivity, PlayerActivity::class.java).apply {
+                                        putExtra("STREAM_URL", streamUrl)
+                                        putExtra("STREAM_NAME", "${seriesInfo.info?.name} - S${firstSeason}E${firstEpisode.episodeNum}")
+                                        putExtra("IS_LIVE", false)
+                                    }
+                                    startActivity(intent)
+                                }
+                            }
+                        }
+                    }
+                }.onFailure { error ->
+                    android.util.Log.e(TAG, "Error loading series info: ${error.message}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error playing first episode", e)
+            }
+        }
+    }
+    
+    /**
+     * Open series details page
+     */
+    private fun openSeriesDetails(seriesId: Int) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                // Find the XtreamSeries from cache
+                var foundSeries: XtreamSeries? = null
+                for (category in DataManager.xtreamSeriesCategories) {
+                    DataManager.getCachedSeriesForCategory(category.categoryId)?.let { seriesList ->
+                        foundSeries = seriesList.find { it.seriesId == seriesId }
+                        if (foundSeries != null) return@let
+                    }
+                    if (foundSeries != null) break
+                }
+                
+                if (foundSeries != null) {
+                    val series = foundSeries!!
+                    withContext(Dispatchers.Main) {
+                        val intent = Intent(this@HomeActivity, SeriesDetailActivity::class.java).apply {
+                            putExtra("SERIES_ID", series.seriesId)
+                            putExtra("SERIES_NAME", series.name)
+                            putExtra("SERIES_COVER", series.cover)
+                            putExtra("SERIES_PLOT", series.plot)
+                            putExtra("SERIES_CAST", series.cast)
+                            putExtra("SERIES_DIRECTOR", series.director)
+                            putExtra("SERIES_GENRE", series.genre)
+                            putExtra("SERIES_RATING", series.rating)
+                        }
+                        startActivity(intent)
+                    }
+                } else {
+                    android.util.Log.e(TAG, "Series not found in cache: $seriesId")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error opening series details", e)
+            }
         }
     }
     
@@ -1333,7 +1596,12 @@ class HomeActivity : AppCompatActivity() {
                     badge = if (rank <= 3) "Tendance" else null,
                     streamIcon = null,
                     cover = matchedSeries.cover,
-                    containerExtension = null
+                    containerExtension = null,
+                    // TMDB data for Hero Banner
+                    tmdbBackdropUrl = TmdbClient.getBackdropUrl(tmdbSeries.backdrop_path),
+                    tmdbOverview = tmdbSeries.overview,
+                    tmdbVoteAverage = tmdbSeries.vote_average,
+                    tmdbYear = tmdbYear
                 ))
                 rank++
             } else {
