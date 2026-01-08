@@ -458,6 +458,88 @@ router.get('/transactions', async (req, res) => {
   res.json(transactions);
 });
 
+// ============= CANCEL ACTIVATION (Refund within 7 days) =============
+
+// Cancel activation and refund credits (within 7 days)
+router.post('/devices/:mac/cancel', async (req, res) => {
+  const { mac } = req.params;
+  const resellerId = req.user.id;
+  const creditsToRefund = parseInt(process.env.CREDITS_PER_ACTIVATION) || 10;
+  const cancelWindowDays = 7;
+
+  // Normalize MAC
+  const formattedMac = mac.toUpperCase().replace(/[^A-F0-9]/g, '').match(/.{2}/g)?.join(':');
+  
+  if (!formattedMac) {
+    return res.status(400).json({ error: 'Format MAC invalide' });
+  }
+
+  // Check device belongs to reseller
+  const device = await db.prepare('SELECT * FROM devices WHERE mac_address = ? AND reseller_id = ?')
+    .get(formattedMac, resellerId);
+  
+  if (!device) {
+    return res.status(404).json({ error: 'Appareil non trouvé ou non autorisé' });
+  }
+
+  // Check if device is active
+  if (device.status !== 'active') {
+    return res.status(400).json({ error: 'Seuls les appareils actifs peuvent être annulés' });
+  }
+
+  // Check if device was already cancelled before (one-time only)
+  if (device.was_cancelled === 1 || device.was_cancelled === true) {
+    return res.status(400).json({ error: 'Cette adresse MAC a déjà été annulée une fois. Annulation impossible.' });
+  }
+
+  // Check if within 7 days of activation
+  const activationDate = new Date(device.activation_date);
+  const now = new Date();
+  const daysSinceActivation = Math.floor((now.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysSinceActivation >= cancelWindowDays) {
+    return res.status(400).json({ 
+      error: `Délai d'annulation dépassé. L'annulation n'est possible que dans les ${cancelWindowDays} jours suivant l'activation.`,
+      days_since_activation: daysSinceActivation
+    });
+  }
+
+  try {
+    // Update device status to 'cancelled' and mark as was_cancelled
+    await db.prepare(`
+      UPDATE devices 
+      SET status = 'cancelled', was_cancelled = ?
+      WHERE mac_address = ?
+    `).run(usePostgres ? true : 1, formattedMac);
+
+    // Refund credits to reseller
+    await db.prepare('UPDATE resellers SET credits = credits + ? WHERE id = ?')
+      .run(creditsToRefund, resellerId);
+
+    // Log transaction
+    await db.prepare(`
+      INSERT INTO transactions (reseller_id, type, amount, description, mac_address)
+      VALUES (?, 'cancellation_refund', ?, ?, ?)
+    `).run(resellerId, creditsToRefund, 'Annulation activation - remboursement', formattedMac);
+
+    // Get updated credits
+    const updatedReseller = await db.prepare('SELECT credits FROM resellers WHERE id = ?').get(resellerId);
+
+    console.log(`🔄 Activation cancelled: ${formattedMac} - Refunded ${creditsToRefund} credits to reseller ${resellerId}`);
+
+    res.json({
+      success: true,
+      message: 'Activation annulée avec succès',
+      mac_address: formattedMac,
+      credits_refunded: creditsToRefund,
+      credits_remaining: updatedReseller.credits
+    });
+  } catch (error) {
+    console.error('Error cancelling activation:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'annulation' });
+  }
+});
+
 // ============= NEW: Multi-Playlist Management =============
 
 // Get all playlists for a device

@@ -118,6 +118,7 @@ async function init() {
         last_seen TIMESTAMP,
         device_info TEXT,
         device_key TEXT,
+        was_cancelled BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -297,6 +298,7 @@ async function init() {
         last_seen DATETIME,
         device_info TEXT,
         device_key TEXT,
+        was_cancelled INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (reseller_id) REFERENCES resellers(id)
       );

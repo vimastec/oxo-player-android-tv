@@ -198,6 +198,14 @@ app.get('/api/health', (req, res) => {
       } catch (err) {
         console.log('App version migration already applied or failed:', err.message);
       }
+
+      // Cancellation support migration
+      try {
+        const cancellationMigration = require('./migrations/add_cancellation_support');
+        cancellationMigration.runMigration();
+      } catch (err) {
+        console.log('Cancellation migration already applied or failed:', err.message);
+      }
     } else {
       console.log('✅ PostgreSQL detected - running PostgreSQL migrations');
       
@@ -207,6 +215,14 @@ app.get('/api/health', (req, res) => {
         await appVersionMigration.runMigration();
       } catch (err) {
         console.log('App version migration already applied or failed:', err.message);
+      }
+
+      // Cancellation support migration
+      try {
+        const cancellationMigration = require('./migrations/add_cancellation_support');
+        cancellationMigration.runMigration();
+      } catch (err) {
+        console.log('Cancellation migration already applied or failed:', err.message);
       }
     }
 
