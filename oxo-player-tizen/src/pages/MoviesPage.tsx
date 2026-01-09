@@ -331,3 +331,5 @@ export function MoviesPage({ onBack }: MoviesPageProps) {
   );
 }
 
+
+
