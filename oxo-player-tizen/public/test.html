@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>OXO Player Test</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        h1 {
+            font-size: 72px;
+            color: #E50914;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 32px;
+            color: #ccc;
+        }
+        .status {
+            margin-top: 40px;
+            padding: 20px 40px;
+            background: #E50914;
+            border-radius: 10px;
+            font-size: 28px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 OXO Player</h1>
+    <p>Application Tizen TV</p>
+    <div class="status">✅ L'app fonctionne !</div>
+    
+    <script>
+        console.log("OXO Player Test - Started");
+        
+        // Test si on est sur Tizen
+        if (typeof tizen !== 'undefined') {
+            console.log("Running on Tizen TV");
+            document.body.innerHTML += '<p style="margin-top:30px;color:#4CAF50;">Tizen TV détecté !</p>';
+        } else {
+            console.log("Not running on Tizen");
+            document.body.innerHTML += '<p style="margin-top:30px;color:#FFC107;">Mode navigateur</p>';
+        }
+    </script>
+</body>
+</html>
+

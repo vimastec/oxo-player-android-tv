@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset pour TV */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Scrollbar cachée */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Focus ring pour navigation télécommande */
+.focusable:focus {
+  outline: 3px solid #E50914;
+  outline-offset: 4px;
+  transform: scale(1.02);
+  transition: all 0.2s ease;
+}
+
+/* Animation de pulse pour éléments sélectionnés */
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(229, 9, 20, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(229, 9, 20, 0);
+  }
+}
+
+.focus-pulse:focus {
+  animation: pulse-border 1.5s infinite;
+}
+
+/* Transition douce pour les cards */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:focus,
+.card-hover:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 40px rgba(229, 9, 20, 0.3);
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+

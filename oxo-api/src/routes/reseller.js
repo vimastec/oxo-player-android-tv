@@ -116,13 +116,26 @@ router.get('/devices', async (req, res) => {
   const resellerId = req.user.id;
   
   const devices = await db.prepare(`
-    SELECT *
-    FROM devices
-    WHERE reseller_id = ?
-    ORDER BY created_at DESC
+    SELECT d.*,
+           (SELECT COUNT(*) FROM playlists WHERE device_id = d.id) as playlist_count,
+           (SELECT playlist_type FROM playlists WHERE device_id = d.id AND is_active = 1 LIMIT 1) as active_playlist_type,
+           (SELECT playlist_url FROM playlists WHERE device_id = d.id AND is_active = 1 LIMIT 1) as active_playlist_url,
+           (SELECT xtream_host FROM playlists WHERE device_id = d.id AND is_active = 1 LIMIT 1) as active_xtream_host
+    FROM devices d
+    WHERE d.reseller_id = ?
+    ORDER BY d.created_at DESC
   `).all(resellerId);
 
-  res.json(devices);
+  // Merge active playlist info into device for backward compatibility
+  const devicesWithPlaylistInfo = devices.map(d => ({
+    ...d,
+    playlist_url: d.playlist_url || d.active_playlist_url,
+    xtream_host: d.xtream_host || d.active_xtream_host,
+    playlist_type: d.playlist_type || d.active_playlist_type || 'm3u',
+    has_playlists: d.playlist_count > 0
+  }));
+
+  res.json(devicesWithPlaylistInfo);
 });
 
 // Check MAC address status before activation

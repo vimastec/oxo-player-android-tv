@@ -220,7 +220,7 @@ app.get('/api/health', (req, res) => {
       // Cancellation support migration
       try {
         const cancellationMigration = require('./migrations/add_cancellation_support');
-        cancellationMigration.runMigration();
+        await cancellationMigration.runMigration();
       } catch (err) {
         console.log('Cancellation migration already applied or failed:', err.message);
       }

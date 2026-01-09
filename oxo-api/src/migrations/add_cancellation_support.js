@@ -6,26 +6,26 @@
 
 const { db, usePostgres } = require('../database');
 
-function runMigration() {
+async function runMigration() {
   console.log('🔄 Running cancellation support migration...');
 
   try {
     if (usePostgres) {
-      // PostgreSQL
-      const checkColumn = db.prepare(`
+      // PostgreSQL - async calls
+      const checkColumn = await db.prepare(`
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_name = 'devices' AND column_name = 'was_cancelled'
       `).get();
 
       if (!checkColumn) {
-        db.prepare(`ALTER TABLE devices ADD COLUMN was_cancelled BOOLEAN DEFAULT FALSE`).run();
+        await db.prepare(`ALTER TABLE devices ADD COLUMN was_cancelled BOOLEAN DEFAULT FALSE`).run();
         console.log('✅ Added was_cancelled column to devices table (PostgreSQL)');
       } else {
         console.log('✅ was_cancelled column already exists (PostgreSQL)');
       }
     } else {
-      // SQLite
+      // SQLite - sync calls
       const columns = db.pragma('table_info(devices)');
       const hasWasCancelled = columns.some(col => col.name === 'was_cancelled');
 

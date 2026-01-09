@@ -48,8 +48,12 @@ export function LoginPage() {
       <div className="relative w-full max-w-md animate-slideIn">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-secondary mb-4">
-            <span className="text-3xl font-bold text-white">OXO</span>
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/oxo-logo.png" 
+              alt="OXO Logo" 
+              className="w-32 h-32 object-contain"
+            />
           </div>
           <h1 className="text-3xl font-bold mb-2">OXO Panel</h1>
           <p className="text-muted">Connectez-vous pour accéder au panneau</p>

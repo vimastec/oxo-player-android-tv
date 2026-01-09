@@ -68,8 +68,12 @@ export const adminApi = {
   addCredits: (id: number, amount: number, description?: string) =>
     api.post(`/admin/resellers/${id}/credits`, { amount, description }),
   
+  // Monitoring
+  getMonitoring: () => api.get('/admin/monitoring'),
+
   // Devices
-  getDevices: () => api.get('/admin/devices'),
+  getDevices: (params?: { search?: string; sort?: string; order?: string; page?: number; limit?: number; status?: string }) => 
+    api.get('/admin/devices', { params }),
   updateDeviceStatus: (id: number, status: string) => api.put(`/admin/devices/${id}/status`, { status }),
   
   // Transactions
@@ -152,6 +156,9 @@ export const resellerApi = {
   
   // Transactions
   getTransactions: () => api.get('/reseller/transactions'),
+  
+  // Cancel activation (refund within 7 days)
+  cancelActivation: (mac: string) => api.post(`/reseller/devices/${mac}/cancel`),
   
   // Sub-Resellers Management
   getSubResellers: () => api.get('/reseller/subresellers'),

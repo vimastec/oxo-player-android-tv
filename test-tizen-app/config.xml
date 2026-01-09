@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://test.app" version="1.0.0">
+    <tizen:application id="TestApp.TestApp" package="TestApp" required_version="2.3"/>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <name>Test App</name>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:profile name="tv-samsung"/>
+</widget>

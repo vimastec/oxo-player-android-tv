@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Loader2, ArrowUpCircle, ArrowDownCircle, RotateCcw } from 'lucide-react';
 import { adminApi } from '../../services/api';
 
 interface Transaction {
@@ -64,11 +64,14 @@ export function AdminTransactionsPage() {
                       <div className="flex items-center gap-2">
                         {tx.type === 'credit_add' ? (
                           <ArrowUpCircle className="w-5 h-5 text-success" />
+                        ) : tx.type === 'cancellation_refund' ? (
+                          <RotateCcw className="w-5 h-5 text-orange-500" />
                         ) : (
                           <ArrowDownCircle className="w-5 h-5 text-warning" />
                         )}
                         <span>
-                          {tx.type === 'credit_add' ? 'Ajout crédits' : 'Activation'}
+                          {tx.type === 'credit_add' ? 'Ajout crédits' : 
+                           tx.type === 'cancellation_refund' ? 'Remboursement' : 'Activation'}
                         </span>
                       </div>
                     </td>
@@ -81,10 +84,10 @@ export function AdminTransactionsPage() {
                     <td>
                       <span
                         className={`font-bold ${
-                          tx.type === 'credit_add' ? 'text-success' : 'text-warning'
+                          tx.type === 'credit_add' || tx.type === 'cancellation_refund' ? 'text-success' : 'text-warning'
                         }`}
                       >
-                        {tx.type === 'credit_add' ? '+' : '-'}{tx.amount}
+                        {tx.type === 'credit_add' || tx.type === 'cancellation_refund' ? '+' : '-'}{tx.amount}
                       </span>
                     </td>
                     <td>

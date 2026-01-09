@@ -13,6 +13,7 @@ import {
   UserPlus,
   Download,
   Server,
+  Activity,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
@@ -51,6 +52,7 @@ export function Layout({ children }: LayoutProps) {
     { path: '/admin/resellers', icon: Users, label: 'Revendeurs' },
     { path: '/admin/devices', icon: Tv, label: 'Appareils' },
     { path: '/admin/transactions', icon: History, label: 'Transactions' },
+    { path: '/admin/monitoring', icon: Activity, label: 'Monitoring' },
     { path: '/admin/seller-contacts', icon: Store, label: 'Points de vente' },
     { path: '/admin/seller-requests', icon: MessageSquare, label: 'Demandes partenariat' },
     { path: '/admin/hosts', icon: Server, label: 'Hosts Top 10' },
@@ -74,13 +76,25 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex">
-      {/* Mobile menu button */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-card rounded-xl border border-border"
-      >
-        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-      </button>
+      {/* Mobile Top Bar - Fixed */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border">
+        <div className="flex items-center justify-between px-4 py-3.5">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 hover:bg-dark rounded-lg transition-colors"
+            aria-label="Menu"
+          >
+            {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+          
+          <div className="flex items-center gap-3">
+            <img src="/oxo-logo.png" alt="OXO" className="w-12 h-12 object-contain" />
+            <span className="font-bold text-lg">OXO Panel</span>
+          </div>
+          
+          <div className="w-10"></div> {/* Spacer for centering */}
+        </div>
+      </div>
 
       {/* Overlay */}
       {sidebarOpen && (
@@ -93,19 +107,18 @@ export function Layout({ children }: LayoutProps) {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:sticky top-0 left-0 h-screen w-64 z-40
+          fixed lg:sticky left-0 w-64 z-40
           bg-dark border-r border-border
           transition-transform duration-300
+          top-[76px] lg:top-0 h-[calc(100vh-76px)] lg:h-screen
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="p-6 border-b border-border">
+          {/* Logo - Desktop only (mobile has TopBar) */}
+          <div className="hidden lg:flex p-6 border-b border-border">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                <span className="text-lg font-bold">OXO</span>
-              </div>
+              <img src="/oxo-logo.png" alt="OXO" className="w-10 h-10 object-contain" />
               <div>
                 <h1 className="font-bold">OXO Panel</h1>
                 <p className="text-xs text-muted capitalize">{user?.role}</p>
@@ -114,7 +127,7 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="p-4 space-y-2">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
@@ -123,22 +136,22 @@ export function Layout({ children }: LayoutProps) {
                   to={item.path}
                   onClick={() => setSidebarOpen(false)}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-xl transition-colors
+                    flex items-center gap-4 px-5 py-4 rounded-xl transition-colors min-h-[56px]
                     ${isActive
                       ? 'bg-primary text-white'
                       : 'text-muted hover:bg-card hover:text-white'
                     }
                   `}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
+                  <item.icon className="w-6 h-6 flex-shrink-0" />
+                  <span className="font-medium text-base">{item.label}</span>
                 </Link>
               );
             })}
           </nav>
 
-          {/* User info */}
-          <div className="p-4 border-t border-border">
+          {/* User info - Right after menu */}
+          <div className="p-4 mt-4 border-t border-border">
             <div className="px-4 py-3 bg-card rounded-xl mb-3">
               <p className="font-medium truncate">{user?.name}</p>
               <p className="text-xs text-muted truncate">{user?.email}</p>
@@ -161,7 +174,11 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <main className="flex-1 lg:ml-0 min-h-screen">
-        <div className="p-6 lg:p-8">{children}</div>
+        {/* Spacer for mobile TopBar */}
+        <div className="h-20 lg:hidden"></div>
+        <div className="p-4 lg:p-8">
+          {children}
+        </div>
       </main>
     </div>
   );

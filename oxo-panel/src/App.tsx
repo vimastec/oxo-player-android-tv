@@ -12,11 +12,15 @@ import { SellerContactsPage } from './pages/admin/SellerContactsPage';
 import { SellerRequestsPage } from './pages/admin/SellerRequestsPage';
 import { AppVersionsPage } from './pages/admin/AppVersionsPage';
 import { HostsPage } from './pages/admin/HostsPage';
+import { AdminMonitoringPage } from './pages/admin/MonitoringPage';
 
 // Reseller pages
 import { ResellerDashboardPage } from './pages/reseller/DashboardPage';
 import { ResellerDevicesPage } from './pages/reseller/DevicesPage';
 import { PlaylistsPage } from './pages/reseller/PlaylistsPage';
+import { AddPlaylistPage } from './pages/reseller/AddPlaylistPage';
+import { AddXtreamPage } from './pages/reseller/AddXtreamPage';
+import { EditPlaylistPage } from './pages/reseller/EditPlaylistPage';
 import { ActivatePage } from './pages/reseller/ActivatePage';
 import { ResellerTransactionsPage } from './pages/reseller/TransactionsPage';
 import { SubResellersPage } from './pages/reseller/SubResellersPage';
@@ -93,6 +97,14 @@ function App() {
           }
         />
         <Route
+          path="/admin/monitoring"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminMonitoringPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/admin/seller-contacts"
           element={
             <ProtectedRoute allowedRoles={['admin']}>
@@ -147,6 +159,30 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['reseller']}>
               <PlaylistsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reseller/devices/:mac/playlists/add"
+          element={
+            <ProtectedRoute allowedRoles={['reseller']}>
+              <AddPlaylistPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reseller/devices/:mac/playlists/add-xtream"
+          element={
+            <ProtectedRoute allowedRoles={['reseller']}>
+              <AddXtreamPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reseller/devices/:mac/playlists/:playlistId/edit"
+          element={
+            <ProtectedRoute allowedRoles={['reseller']}>
+              <EditPlaylistPage />
             </ProtectedRoute>
           }
         />

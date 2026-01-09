@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Tv, Upload, Link, X, CheckCircle, List, Search } from 'lucide-react';
+import { Loader2, Tv, Upload, Link, X, CheckCircle, List, Search, RotateCcw, AlertTriangle } from 'lucide-react';
 import { resellerApi } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 
 interface Device {
   id: number;
@@ -14,10 +15,12 @@ interface Device {
   activation_date: string;
   expiration_date: string;
   last_seen: string;
+  was_cancelled?: boolean;
 }
 
 export function ResellerDevicesPage() {
   const navigate = useNavigate();
+  const { updateUser } = useAuthStore();
   const [devices, setDevices] = useState<Device[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,6 +34,12 @@ export function ResellerDevicesPage() {
   const [xtreamPassword, setXtreamPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  
+  // Cancel activation modal states
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [deviceToCancel, setDeviceToCancel] = useState<Device | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState(false);
 
   // Filter devices by search query
   const filteredDevices = devices.filter((device) =>
@@ -124,6 +133,8 @@ export function ResellerDevicesPage() {
         return <span className="badge badge-info">Essai</span>;
       case 'expired':
         return <span className="badge badge-error">Expiré</span>;
+      case 'cancelled':
+        return <span className="badge bg-orange-500 text-white">Annulé</span>;
       default:
         return <span className="badge">{status}</span>;
     }
@@ -134,6 +145,53 @@ export function ResellerDevicesPage() {
     const now = new Date();
     const diff = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return diff;
+  };
+
+  // Check if device can be cancelled (within 7 days of activation)
+  const canCancelDevice = (device: Device) => {
+    if (device.status !== 'active') return false;
+    if (device.was_cancelled) return false;
+    if (!device.activation_date) return false;
+    
+    const activationDate = new Date(device.activation_date);
+    const now = new Date();
+    const daysSinceActivation = Math.floor((now.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24));
+    return daysSinceActivation < 7;
+  };
+
+  // Get days remaining to cancel
+  const getDaysToCancel = (activationDate: string) => {
+    const activation = new Date(activationDate);
+    const now = new Date();
+    const daysSinceActivation = Math.floor((now.getTime() - activation.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, 7 - daysSinceActivation);
+  };
+
+  // Handle cancel activation
+  const handleOpenCancelModal = (device: Device) => {
+    setDeviceToCancel(device);
+    setCancelSuccess(false);
+    setShowCancelModal(true);
+  };
+
+  const handleCancelActivation = async () => {
+    if (!deviceToCancel) return;
+    
+    setIsCancelling(true);
+    try {
+      const response = await resellerApi.cancelActivation(deviceToCancel.mac_address);
+      setCancelSuccess(true);
+      updateUser({ credits: response.data.credits_remaining });
+      setTimeout(() => {
+        setShowCancelModal(false);
+        setDeviceToCancel(null);
+        loadDevices();
+      }, 2000);
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erreur lors de l\'annulation');
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   if (isLoading) {
@@ -207,21 +265,32 @@ export function ResellerDevicesPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleOpenPlaylistModal(device)}
-                          className="btn btn-sm btn-secondary flex-1 gap-2"
-                        >
-                          <Upload className="w-4 h-4" />
-                          Config rapide
-                        </button>
-                        <button
-                          onClick={() => navigate(`/reseller/devices/${device.mac_address}/playlists`)}
-                          className="btn btn-sm btn-primary flex-1 gap-2"
-                        >
-                          <List className="w-4 h-4" />
-                          Playlists
-                        </button>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleOpenPlaylistModal(device)}
+                            className="btn btn-sm btn-secondary flex-1 gap-2"
+                          >
+                            <Upload className="w-4 h-4" />
+                            Config rapide
+                          </button>
+                          <button
+                            onClick={() => navigate(`/reseller/devices/${device.mac_address}/playlists`)}
+                            className="btn btn-sm btn-primary flex-1 gap-2"
+                          >
+                            <List className="w-4 h-4" />
+                            Playlists
+                          </button>
+                        </div>
+                        {canCancelDevice(device) && (
+                          <button
+                            onClick={() => handleOpenCancelModal(device)}
+                            className="btn btn-sm bg-orange-600 hover:bg-orange-700 text-white w-full gap-2"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            Annuler ({getDaysToCancel(device.activation_date)}j restants)
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -291,6 +360,15 @@ export function ResellerDevicesPage() {
                                 >
                                   <List className="w-4 h-4" />
                                 </button>
+                                {canCancelDevice(device) && (
+                                  <button
+                                    onClick={() => handleOpenCancelModal(device)}
+                                    className="btn btn-sm bg-orange-600 hover:bg-orange-700 text-white"
+                                    title={`Annuler (${getDaysToCancel(device.activation_date)}j restants)`}
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -500,6 +578,84 @@ export function ResellerDevicesPage() {
                   </button>
                 </div>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Annulation */}
+      {showCancelModal && deviceToCancel && (
+        <div className="modal-overlay">
+          <div className="modal-content max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2 text-orange-500">
+                <AlertTriangle className="w-6 h-6" />
+                Annuler l'activation
+              </h2>
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="p-2 hover:bg-gray-700 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {cancelSuccess ? (
+              <div className="text-center py-6">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <p className="text-lg font-medium mb-2">Annulation réussie !</p>
+                <p className="text-muted">10 crédits ont été remboursés sur votre compte.</p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4 mb-4">
+                  <p className="text-sm">
+                    <strong>Attention :</strong> Cette action est irréversible. L'adresse MAC ne pourra être annulée qu'<strong>une seule fois</strong>.
+                  </p>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-muted">Adresse MAC :</span>
+                    <span className="font-mono font-medium">{deviceToCancel.mac_address}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted">Date d'activation :</span>
+                    <span>{new Date(deviceToCancel.activation_date).toLocaleDateString('fr-FR')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted">Délai restant :</span>
+                    <span className="text-orange-500 font-medium">{getDaysToCancel(deviceToCancel.activation_date)} jours</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-700 pt-3">
+                    <span className="text-muted">Crédits à rembourser :</span>
+                    <span className="text-green-500 font-bold">+10 crédits</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCancelModal(false)}
+                    className="btn btn-secondary flex-1"
+                  >
+                    Retour
+                  </button>
+                  <button
+                    onClick={handleCancelActivation}
+                    disabled={isCancelling}
+                    className="btn bg-orange-600 hover:bg-orange-700 text-white flex-1 gap-2"
+                  >
+                    {isCancelling ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <RotateCcw className="w-5 h-5" />
+                        Confirmer l'annulation
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>

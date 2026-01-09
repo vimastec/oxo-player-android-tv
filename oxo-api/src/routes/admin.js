@@ -50,6 +50,184 @@ router.get('/dashboard', async (req, res) => {
   });
 });
 
+// Monitoring stats
+router.get('/monitoring', async (req, res) => {
+  try {
+    // Total counts
+    const totalDevices = Number((await db.prepare('SELECT COUNT(*) as count FROM devices').get())?.count || 0);
+    const totalResellers = Number((await db.prepare('SELECT COUNT(*) as count FROM resellers').get())?.count || 0);
+    const totalTransactions = Number((await db.prepare('SELECT COUNT(*) as count FROM transactions').get())?.count || 0);
+    const totalPlaylists = Number((await db.prepare('SELECT COUNT(*) as count FROM playlists').get())?.count || 0);
+
+    // Device status breakdown
+    const activeDevices = Number((await db.prepare("SELECT COUNT(*) as count FROM devices WHERE status = 'active'").get())?.count || 0);
+    const trialDevices = Number((await db.prepare("SELECT COUNT(*) as count FROM devices WHERE status = 'trial'").get())?.count || 0);
+    const expiredDevices = Number((await db.prepare("SELECT COUNT(*) as count FROM devices WHERE status = 'expired'").get())?.count || 0);
+    const cancelledDevices = Number((await db.prepare("SELECT COUNT(*) as count FROM devices WHERE status = 'cancelled'").get())?.count || 0);
+    const disabledDevices = Number((await db.prepare("SELECT COUNT(*) as count FROM devices WHERE status = 'disabled'").get())?.count || 0);
+
+    // This month activations
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const activationsThisMonth = Number((await db.prepare(
+      "SELECT COUNT(*) as count FROM transactions WHERE type = 'activation' AND created_at >= ?"
+    ).get(firstDayOfMonth))?.count || 0);
+
+    // This week activations
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const activationsThisWeek = Number((await db.prepare(
+      "SELECT COUNT(*) as count FROM transactions WHERE type = 'activation' AND created_at >= ?"
+    ).get(oneWeekAgo))?.count || 0);
+
+    // Today activations
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const activationsToday = Number((await db.prepare(
+      "SELECT COUNT(*) as count FROM transactions WHERE type = 'activation' AND created_at >= ?"
+    ).get(todayStart))?.count || 0);
+
+    // Cancellations this month
+    const cancellationsThisMonth = Number((await db.prepare(
+      "SELECT COUNT(*) as count FROM transactions WHERE type = 'cancellation_refund' AND created_at >= ?"
+    ).get(firstDayOfMonth))?.count || 0);
+
+    // Credits stats
+    const totalCreditsGiven = Number((await db.prepare(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'credit_add'"
+    ).get())?.total || 0);
+    const totalCreditsUsed = Number((await db.prepare(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'activation'"
+    ).get())?.total || 0);
+    const totalCreditsRefunded = Number((await db.prepare(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE type = 'cancellation_refund'"
+    ).get())?.total || 0);
+
+    // Estimated DB size (rough calculation)
+    const estimatedDbSizeMB = (
+      (totalDevices * 0.5) + // ~500 bytes per device
+      (totalTransactions * 0.2) + // ~200 bytes per transaction
+      (totalPlaylists * 0.3) + // ~300 bytes per playlist
+      (totalResellers * 0.3) // ~300 bytes per reseller
+    ) / 1024; // Convert KB to MB
+
+    // Daily activations for last 7 days
+    const dailyActivations = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i + 1);
+      const count = Number((await db.prepare(
+        "SELECT COUNT(*) as count FROM transactions WHERE type = 'activation' AND created_at >= ? AND created_at < ?"
+      ).get(dayStart.toISOString(), dayEnd.toISOString()))?.count || 0);
+      dailyActivations.push({
+        date: dayStart.toISOString().split('T')[0],
+        day: dayStart.toLocaleDateString('fr-FR', { weekday: 'short' }),
+        count
+      });
+    }
+
+    // Monthly activations for last 6 months
+    const monthlyActivations = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const count = Number((await db.prepare(
+        "SELECT COUNT(*) as count FROM transactions WHERE type = 'activation' AND created_at >= ? AND created_at < ?"
+      ).get(monthStart.toISOString(), monthEnd.toISOString()))?.count || 0);
+      monthlyActivations.push({
+        month: monthStart.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),
+        count
+      });
+    }
+
+    // Limits (Railway Hobby Plan)
+    const limits = {
+      maxDevices: 50000,
+      maxDbSizeMB: 1024, // 1 GB
+      recommendedMonthlyActivations: 2000
+    };
+
+    res.json({
+      overview: {
+        totalDevices,
+        totalResellers,
+        totalTransactions,
+        totalPlaylists
+      },
+      deviceStatus: {
+        active: activeDevices,
+        trial: trialDevices,
+        expired: expiredDevices,
+        cancelled: cancelledDevices,
+        disabled: disabledDevices
+      },
+      activations: {
+        today: activationsToday,
+        thisWeek: activationsThisWeek,
+        thisMonth: activationsThisMonth,
+        cancellationsThisMonth
+      },
+      credits: {
+        totalGiven: totalCreditsGiven,
+        totalUsed: totalCreditsUsed,
+        totalRefunded: totalCreditsRefunded,
+        balance: totalCreditsGiven - totalCreditsUsed + totalCreditsRefunded
+      },
+      storage: {
+        estimatedDbSizeMB: Math.round(estimatedDbSizeMB * 100) / 100,
+        maxDbSizeMB: limits.maxDbSizeMB,
+        usagePercent: Math.round((estimatedDbSizeMB / limits.maxDbSizeMB) * 100 * 100) / 100
+      },
+      charts: {
+        dailyActivations,
+        monthlyActivations
+      },
+      limits,
+      alerts: generateAlerts({
+        totalDevices,
+        estimatedDbSizeMB,
+        activationsThisMonth,
+        limits
+      })
+    });
+  } catch (error) {
+    console.error('Error getting monitoring stats:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des statistiques' });
+  }
+});
+
+function generateAlerts({ totalDevices, estimatedDbSizeMB, activationsThisMonth, limits }) {
+  const alerts = [];
+  
+  if (totalDevices > limits.maxDevices * 0.8) {
+    alerts.push({
+      type: 'warning',
+      message: `Nombre d'appareils élevé (${totalDevices}/${limits.maxDevices}). Considérez un upgrade.`
+    });
+  }
+  
+  if (estimatedDbSizeMB > limits.maxDbSizeMB * 0.7) {
+    alerts.push({
+      type: 'warning',
+      message: `Base de données à ${Math.round(estimatedDbSizeMB)}MB/${limits.maxDbSizeMB}MB. Surveillez l'espace.`
+    });
+  }
+  
+  if (activationsThisMonth > limits.recommendedMonthlyActivations * 0.8) {
+    alerts.push({
+      type: 'info',
+      message: `${activationsThisMonth} activations ce mois. Proche de la limite recommandée (${limits.recommendedMonthlyActivations}).`
+    });
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({
+      type: 'success',
+      message: 'Tous les systèmes fonctionnent normalement.'
+    });
+  }
+  
+  return alerts;
+}
+
 // List all resellers (only main resellers, not sub-resellers)
 router.get('/resellers', async (req, res) => {
   const isSubresellerFalse = usePostgres ? 'FALSE' : '0';
@@ -198,41 +376,97 @@ router.post('/resellers/:id/credits', async (req, res) => {
 
 // Delete reseller
 router.delete('/resellers/:id', async (req, res) => {
-  const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-  const reseller = await db.prepare('SELECT * FROM resellers WHERE id = ?').get(id);
-  if (!reseller) {
-    return res.status(404).json({ error: 'Revendeur non trouvé' });
+    const reseller = await db.prepare('SELECT * FROM resellers WHERE id = ?').get(id);
+    if (!reseller) {
+      return res.status(404).json({ error: 'Revendeur non trouvé' });
+    }
+
+    // Get all sub-resellers
+    const subResellers = await db.prepare('SELECT id FROM resellers WHERE parent_reseller_id = ?').all(id);
+    
+    // Remove devices and transactions from sub-resellers, then delete them
+    for (const sub of subResellers) {
+      await db.prepare('UPDATE devices SET reseller_id = NULL WHERE reseller_id = ?').run(sub.id);
+      await db.prepare('UPDATE transactions SET reseller_id = NULL WHERE reseller_id = ?').run(sub.id);
+      await db.prepare('UPDATE transactions SET from_reseller_id = NULL WHERE from_reseller_id = ?').run(sub.id);
+      await db.prepare('DELETE FROM resellers WHERE id = ?').run(sub.id);
+    }
+
+    // Remove reseller's devices assignment
+    await db.prepare('UPDATE devices SET reseller_id = NULL WHERE reseller_id = ?').run(id);
+    
+    // Remove reseller's transactions reference (keep transactions for history but unlink)
+    await db.prepare('UPDATE transactions SET reseller_id = NULL WHERE reseller_id = ?').run(id);
+    await db.prepare('UPDATE transactions SET from_reseller_id = NULL WHERE from_reseller_id = ?').run(id);
+    
+    // Delete reseller
+    await db.prepare('DELETE FROM resellers WHERE id = ?').run(id);
+
+    res.json({ message: 'Revendeur supprimé' });
+  } catch (error) {
+    console.error('Error deleting reseller:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression du revendeur' });
   }
-
-  // Get all sub-resellers
-  const subResellers = await db.prepare('SELECT id FROM resellers WHERE parent_reseller_id = ?').all(id);
-  
-  // Remove devices from sub-resellers and delete them
-  for (const sub of subResellers) {
-    await db.prepare('UPDATE devices SET reseller_id = NULL WHERE reseller_id = ?').run(sub.id);
-    await db.prepare('DELETE FROM resellers WHERE id = ?').run(sub.id);
-  }
-
-  // Remove reseller's devices assignment
-  await db.prepare('UPDATE devices SET reseller_id = NULL WHERE reseller_id = ?').run(id);
-  
-  // Delete reseller
-  await db.prepare('DELETE FROM resellers WHERE id = ?').run(id);
-
-  res.json({ message: 'Revendeur supprimé' });
 });
 
-// List all devices
+// List all devices with search, sort and pagination
 router.get('/devices', async (req, res) => {
-  const devices = await db.prepare(`
+  const { search, sort = 'created_at', order = 'desc', page = 1, limit = 50, status } = req.query;
+  const pageNum = parseInt(page) || 1;
+  const limitNum = parseInt(limit) || 50;
+  const offset = (pageNum - 1) * limitNum;
+
+  // Validate sort field
+  const validSortFields = ['mac_address', 'status', 'expiration_date', 'last_seen', 'created_at', 'reseller_name'];
+  const sortField = validSortFields.includes(sort) ? sort : 'created_at';
+  const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+
+  // Build WHERE clause
+  let whereConditions = [];
+  let params = [];
+
+  if (search) {
+    whereConditions.push('d.mac_address LIKE ?');
+    params.push(`%${search.toUpperCase().replace(/[^A-F0-9:]/g, '')}%`);
+  }
+
+  if (status && status !== 'all') {
+    whereConditions.push('d.status = ?');
+    params.push(status);
+  }
+
+  const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+
+  // Get total count
+  const countQuery = `SELECT COUNT(*) as total FROM devices d ${whereClause}`;
+  const totalRow = await db.prepare(countQuery).get(...params);
+  const total = Number(totalRow?.total || 0);
+
+  // Build ORDER BY - handle reseller_name sorting
+  let orderByField = sortField === 'reseller_name' ? 'r.name' : `d.${sortField}`;
+  
+  // Get paginated devices
+  const devicesQuery = `
     SELECT d.*, r.name as reseller_name, r.email as reseller_email
     FROM devices d
     LEFT JOIN resellers r ON d.reseller_id = r.id
-    ORDER BY d.created_at DESC
-  `).all();
+    ${whereClause}
+    ORDER BY ${orderByField} ${sortOrder}
+    LIMIT ? OFFSET ?
+  `;
 
-  res.json(devices);
+  const devices = await db.prepare(devicesQuery).all(...params, limitNum, offset);
+
+  res.json({
+    devices,
+    total,
+    page: pageNum,
+    limit: limitNum,
+    totalPages: Math.ceil(total / limitNum)
+  });
 });
 
 // Update device status (disable/enable)
